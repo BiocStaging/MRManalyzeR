@@ -102,6 +102,27 @@ test_that(".resolve_meta_col() finds columns mangled by make.names()", {
   expect_null(.resolve_meta_col("", df))
 })
 
+test_that(".resolve_meta_col() finds a heading from its stored spelling", {
+  df <- data.frame(`Chrom-Batch` = 1, check.names = FALSE)
+  expect_equal(.resolve_meta_col("Chrom.Batch", df), "Chrom-Batch")
+  both <- data.frame(`S-group` = 1, `S group` = 2, check.names = FALSE)
+  expect_null(.resolve_meta_col("S.group", both))   # ambiguous
+})
+
+test_that("a stored dataset with no imputation record follows replace_MVs", {
+  de <- struct::DatasetExperiment(
+    data          = data.frame(A = c(1, 2), row.names = c("s1", "s2")),
+    sample_meta   = data.frame(x = 1:2, row.names = c("s1", "s2")),
+    variable_meta = data.frame(Compound = "A", row.names = "A"))
+  expect_false(.values_imputed(de, FALSE))
+  expect_false(.values_imputed(de, NULL))
+  expect_true(.values_imputed(de, 0.5))
+  vm <- as.data.frame(de$variable_meta)
+  vm$n_imputed <- 0L
+  de$variable_meta <- vm
+  expect_false(.values_imputed(de, 0.5))   # recorded: nothing was filled
+})
+
 test_that(".resolve_meta_col() prefers an exact match over the mangled one", {
   # A workbook holding both spellings must not be silently redirected.
   df = data.frame(check.names = FALSE, `S-group` = "raw", S.group = "clean",
@@ -130,4 +151,56 @@ test_that(".narrow_datatype() leaves a disabled signal filter off", {
   # switch on a floor the config deliberately declined.
   pmp = list(skyline_data = list(enabled = TRUE, signal_filter = FALSE))
   expect_false(.narrow_datatype(pmp, "Response")$skyline_data$signal_filter)
+})
+
+test_that("a feature grouping column the data does not have is reported", {
+  ids <- paste0("S", 1:3)
+  de <- struct::DatasetExperiment(
+    data = data.frame(A = c(1, 2, 3), row.names = ids),
+    sample_meta = data.frame(g = rep("a", 3), row.names = ids),
+    variable_meta = data.frame(Compound = "A", Class = "x", row.names = "A"))
+  st <- list(pca     = list(loadings = list(color_by = "Enzymatic_pathway")),
+             heatmap = list(group_features_by = "Class"))
+  expect_warning(.check_feature_cols(st, de), "Enzymatic_pathway")
+
+  st$pca$loadings$color_by <- "Class"
+  expect_silent(.check_feature_cols(st, de))
+})
+
+test_that("injection order is checked only when the data-quality report runs", {
+  cfg <- list(project = list(data_quality_report = list(execute = TRUE)))
+  expect_equal(.order_head(cfg), "Injection_order")
+
+  cfg$project$data_quality_report$injection_order_head <- "Inj"
+  expect_equal(.order_head(cfg), "Inj")
+
+  cfg$project$data_quality_report$execute <- FALSE
+  expect_null(.order_head(cfg))
+
+  # A legacy UVA_report: block is read the way the report reads it.
+  legacy <- list(project = list(UVA_report = list(
+    execute = TRUE, injection_order_head = "Run")))
+  expect_equal(.order_head(legacy), "Run")
+})
+
+test_that("combine reads a panel's measured values when they are stored", {
+  td <- withr::local_tempdir()
+  a <- file.path(td, "a.RDS")
+  b <- file.path(td, "b.RDS")
+  file.create(a, b, file.path(td, "a_measured.RDS"))
+  p <- suppressMessages(.prefer_measured(c(A = a, B = b)))
+  expect_equal(unname(p), c(file.path(td, "a_measured.RDS"), b))
+  expect_named(p, c("A", "B"))
+})
+
+test_that("a correlation on fewer than three shared samples is left out", {
+  X <- cbind(a = c(1, 2, NA, NA, 5),
+             b = c(2, 4, NA, 7, NA),
+             c = c(1, 3, 2, 5, 4))
+  out <- .pairwise_cor_long(X, "pearson", "t", "all")
+  ab  <- out$feature_a == "b" & out$feature_b == "a"
+  ca  <- out$feature_a == "c" & out$feature_b == "a"
+  expect_equal(out$n[ab], 2)
+  expect_true(is.na(out$estimate[ab]))
+  expect_false(is.na(out$estimate[ca]))
 })

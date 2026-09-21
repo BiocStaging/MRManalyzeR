@@ -118,3 +118,37 @@ test_that("errors when no samples are common across inputs", {
   expect_error(combineDatasets(c(p1 = p1, p2 = p2)),
                "No samples in common")
 })
+
+test_that("the combine run keeps panel names and writes a measured merge", {
+  td  <- withr::local_tempdir()
+  ids <- c("S1", "S2", "S3")
+  imp  <- .make_de(ids, c("A", "B"))
+  meas <- imp
+  d <- as.data.frame(meas$data); d[1, 1] <- NA; meas$data <- d
+  .write_de_rds(imp,  file.path(td, "pa.RDS"))
+  .write_de_rds(meas, file.path(td, "pa_measured.RDS"))
+  .write_de_rds(.make_de(ids, c("C", "D")), file.path(td, "pb.RDS"))
+  cfg <- list(
+    combine = list(
+      datasets        = list(list(path = file.path(td, "pa.RDS")),
+                             list(path = file.path(td, "pb.RDS"))),
+      prefix_features = TRUE,
+      sample_id_col   = "Sample_ID",
+      output_stub     = file.path(td, "comb")),
+    stats_report = list(execute = FALSE))
+  yml <- file.path(td, "comb.yml")
+  yaml::write_yaml(cfg, yml)
+  res <- suppressMessages(runMRManalyzeRCombine(yml))
+
+  # Untagged panels are named after the file they were exported to, whether
+  # or not their measured copy was read.
+  expect_setequal(colnames(res$datasetExperiment$data),
+                  c("pa__A", "pa__B", "pb__C", "pb__D"))
+  expect_identical(colnames(res$measured$data),
+                   colnames(res$datasetExperiment$data))
+  expect_false(anyNA(res$datasetExperiment$data))
+  expect_true(anyNA(res$measured$data))
+  expect_true(file.exists(file.path(td, "comb_measured.RDS")))
+  expect_true("matrix_measured" %in%
+                openxlsx::getSheetNames(file.path(td, "comb.xlsx")))
+})

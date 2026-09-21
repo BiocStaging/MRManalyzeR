@@ -76,8 +76,9 @@ Values are transformed, then scaled per compound (`scale = "z"`) so that
 compounds spanning three orders of magnitude are comparable in one picture -
 without it the abundant compounds dominate and everything else is a flat
 wash. Scores are capped at `cap` standard deviations so one outlier cannot
-consume the whole colour range. Zero-variance compounds are dropped, and
-remaining missing values become 0 (the row mean after scaling).
+consume the whole colour range. Zero-variance compounds are dropped.
+Missing values are drawn grey; only for ordering and clustering do they
+count as the compound's mean (0 after scaling).
 
 Compounds are ordered into contiguous blocks by `group_features_by`, with
 gaps drawn between blocks, and clustered *within* each block when

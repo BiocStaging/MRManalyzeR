@@ -629,6 +629,12 @@ runStats = function(de, st_params){
     pval = res[2, ]
   }
 
+  # With fewer than three shared samples a correlation is +/-1 or undefined
+  # by construction, not an estimate: left out rather than drawn as perfect.
+  thin = n_mat[idx] < 3
+  est  = r_mat[idx]
+  est[thin] = NA_real_; stat[thin] = NA_real_; pval[thin] = NA_real_
+
   data.frame(
     correlation = name,
     subset      = sub_lab,
@@ -636,7 +642,7 @@ runStats = function(de, st_params){
     feature_a   = feats[idx[, 1]],
     feature_b   = feats[idx[, 2]],
     n           = n_mat[idx],
-    estimate    = r_mat[idx],
+    estimate    = est,
     statistic   = stat,
     p_value     = pval,
     stringsAsFactors = FALSE
@@ -784,15 +790,18 @@ runStats = function(de, st_params){
 #'     entries:
 #'       - name: ...
 #' Returns `list()` when the section is absent or `enabled: False`; otherwise
-#' the `entries:` list. A bare top-level list errors loudly so an un-migrated
-#' config is caught rather than silently producing no results.
+#' the `entries:` list, minus any entry switched off with its own
+#' `enabled: False` - so runStats, the report and the validators all skip it
+#' alike. A bare top-level list errors loudly so an un-migrated config is
+#' caught rather than silently producing no results.
 #' @keywords internal
 #' @noRd
 .section_entries = function(section, section_name){
   if(is.null(section)) return(list())
   if(!is.null(section$entries) || !is.null(section$enabled)){
     if(isFALSE(section$enabled)) return(list())
-    return(section$entries %||% list())
+    return(Filter(function(e) !(is.list(e) && isFALSE(e$enabled)),
+                  section$entries %||% list()))
   }
   stop(sprintf(
     "[runStats] '%s:' must be a block with 'enabled:' and 'entries:' (got a bare list). Wrap the list under 'entries:' and add 'enabled: True'.",
@@ -887,7 +896,16 @@ runStats = function(de, st_params){
     den = as.character(cfg$den)
     lbl = as.character(cfg$label %||% paste0(num, " / ", den))
 
-    if(!num %in% colnames(dm) || !den %in% colnames(dm)) next
+    absent = setdiff(c(num, den), colnames(dm))
+    if(length(absent)){
+      # Named, because a silent skip leaves an empty ion_ratios sheet with no
+      # hint that a feature name - often a combine prefix - did not match.
+      warning(sprintf(
+        "[runStats] metabolite ratio '%s' skipped: %s not in the data.",
+        lbl, paste(sprintf("'%s'", absent), collapse = " and ")),
+        call. = FALSE)
+      next
+    }
 
     # Zero denominators give Inf; treat as missing rather than as a huge ratio.
     val = as.numeric(dm[[num]]) / as.numeric(dm[[den]])

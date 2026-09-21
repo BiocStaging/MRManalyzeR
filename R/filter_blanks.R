@@ -54,6 +54,7 @@ filterBlanks = function(de, blank_filter, blank_head = "Sample_type",
   df    = as.data.frame(de$data)
   smeta = as.data.frame(de$sample_meta)
   vm    = as.data.frame(de$variable_meta)
+  blank_head = .resolve_meta_col(blank_head, smeta) %||% blank_head
 
   if(!blank_head %in% colnames(smeta))
     stop(sprintf("[filterBlanks] '%s' is not a sample_meta column.",

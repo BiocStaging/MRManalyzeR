@@ -26,14 +26,27 @@ readTargetLynx = function(xlsx_path, datatype = "Area",
                            tl_headers = c("ID", "Name", "Area", "ng/mL", "Response", "S/N"),
                            snr = FALSE, data_tab_names = NULL){
 
+  .read_targetlynx(xlsx_path, datatype = datatype, tl_headers = tl_headers,
+                   snr = snr, data_tab_names = data_tab_names)$masked
+}
+
+#' Read a TargetLynx workbook, keeping the matrix before and after S/N masking
+#'
+#' [processDataset()] needs both: the masked matrix to process, and the
+#' unmasked one to tell a compound that was never measured from one the S/N
+#' filter removed.
+#' @return A list with `raw` (before masking) and `masked` (after; the same
+#'   object when `snr` is `FALSE`).
+#' @keywords internal
+#' @noRd
+.read_targetlynx = function(xlsx_path, datatype, tl_headers, snr,
+                            data_tab_names){
   lcms_table = extractTable(xlsx_path, tl_headers = tl_headers,
                             data_tab_names = data_tab_names) %>%
     subset(Name != "")
 
-  out_table = .build_wide_matrix(lcms_table, datatype)
-
-  if(!isFALSE(snr))
-    out_table = .apply_snr_mask(out_table, lcms_table, snr)
-
-  out_table
+  raw = .build_wide_matrix(lcms_table, datatype)
+  list(raw    = raw,
+       masked = if(isFALSE(snr)) raw
+                else .apply_snr_mask(raw, lcms_table, snr))
 }

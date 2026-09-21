@@ -10,7 +10,8 @@ runMRManalyzeR(path_yaml)
 \item{path_yaml}{Full path to a project YAML.}
 }
 \value{
-Invisibly, a list with the `DatasetExperiment`, `removed_features`,
+Invisibly, a list with the `DatasetExperiment` (imputed when
+  `replace_MVs` is set), the `measured` one, `removed_features`,
   `stats_tables`, and the resolved output paths. When `datatype` is a
   vector (e.g. `["Area", "Response", "Conc"]`), the function loops over each
   datatype and returns a list of per-datatype results.
@@ -22,7 +23,9 @@ Single entry point that:
   \item (optionally) reads the TargetLynx xlsx workbook and builds the
     processed peak matrix - gated by `PeakMatrixProcessing.execute`,
   \item writes the processed matrix to xlsx + RDS and persists the YAML
-    parameters alongside,
+    parameters alongside - imputed when `replace_MVs` is set, with the
+    measured values added as a `matrix_measured` sheet and
+    `<name>_measured.RDS`,
   \item runs the statistical analyses defined under `stats_report:`
     (comparisons / correlations / linear_models) and writes them as
     extra tabs in the results xlsx,
@@ -38,7 +41,11 @@ the usual quantification filter), `CV_sample` (the same across the
 biological samples, so biological spread plus that technical noise), and
 `CV_sample_vs_QC`. A ratio near 1 flags a compound varying no more between
 samples than between replicate injections of identical material. `CV_QC` is
-`NA` when a run contains no QC injections.
+`NA` when a run contains no QC injections. They are computed on the measured
+values, never on imputed ones.
+
+Both reports and the statistics use the measured values unless their block
+sets `use_imputed: True`; the PCAs impute for themselves.
 
 Output filenames are derived from `paths.fn` + `datatype` +
 `paths.suffix`, so when `PeakMatrixProcessing.execute: False` the code can

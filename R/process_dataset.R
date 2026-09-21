@@ -1,17 +1,21 @@
 #' Build a sample x compound matrix from TargetLynx or Skyline input
 #'
 #' Applies (optionally) signal filtering (SNR for TargetLynx; LOD/LOQ for
-#' Skyline), blank filtering, missing-value imputation, normalisation,
-#' concentration adjustment and batch correction to produce a
+#' Skyline), blank and detection filtering, batch correction, normalisation,
+#' concentration adjustment and missing-value imputation to produce a
 #' `struct::DatasetExperiment`.
 #'
 #' The peak-matrix workflow behind [runMRManalyzeR()], composed of the public
-#' step functions: it reads the workbook ([readTargetLynx()] /
-#' [readSkyline()]) into a wide sample x compound matrix, assembles that into a
-#' `struct::DatasetExperiment` ([assembleDataset()]), then applies
-#' [filterBlanks()], [normaliseMatrix()], [adjustConcentration()] and
-#' [imputeMissing()] to the dataset per acquisition batch, and optionally
-#' batch-corrects the result ([correctBatch()]).
+#' step functions, in this order: it reads the workbook ([readTargetLynx()] /
+#' [readSkyline()]) into a wide sample x compound matrix and assembles it into
+#' a `struct::DatasetExperiment` ([assembleDataset()]); applies
+#' [filterBlanks()] per acquisition batch, then [filterFeatures()] and
+#' [filterSamples()] to the whole dataset; optionally batch-corrects
+#' ([correctBatch()]); applies [normaliseMatrix()] and
+#' [adjustConcentration()]; and imputes last ([imputeMissing()], per batch).
+#' Batch correction works on the instrument signal, before any per-sample
+#' rescaling, and imputation comes last so every earlier step sees only
+#' measured values.
 #'
 #' @param fdata Feature metadata. Must contain the columns named by
 #'   `compound_col`, `processing_name_col`, `report_col` (defaults
@@ -26,9 +30,11 @@
 #'   selects the reader. `"matrix"` is the vendor-neutral route via
 #'   [readPeakMatrix()]: any software that can export a rectangular
 #'   sample x analyte table can be used without a dedicated parser.
-#' @param data_tab_names Sheet name(s) holding the Skyline molecule x sample
-#'   matrix; only used when `data_source = "skyline"`. Multiple names are
-#'   treated as separate acquisition batches and row-bound together - see
+#' @param data_tab_names Sheet name(s) to read from `xlsx_path`. `NULL`
+#'   (default) uses each reader's usual sheets: every sheet whose name
+#'   contains `"lcms_data"` for `"targetlynx"`, `"skyline_data"` for
+#'   `"skyline"` and `"matrix_data"` for `"matrix"`. Multiple Skyline sheets
+#'   are treated as separate acquisition batches and row-bound together - see
 #'   `.read_skyline_matrix()`. Sheet membership does not itself imply
 #'   batch-correction grouping; that remains driven by `sample_metadata`.
 #' @param datatype TargetLynx column to report (e.g. "Area", "Response",
@@ -37,13 +43,24 @@
 #'   [readTargetLynx()]).
 #' @param signal_filter `"SNR"`, `"LOD"`, `"LOQ"`, or `FALSE`. `"SNR"` is
 #'   only valid for `data_source = "targetlynx"`; `"LOD"`/`"LOQ"` are only
-#'   valid for `data_source = "skyline"`. Default `NULL` infers `"SNR"`
+#'   valid for `data_source = "skyline"` or `"matrix"`. Default `NULL` infers
+#'   `"SNR"`
 #'   unless `snr = FALSE`, for backwards compatibility with configs that
 #'   only set `snr:`.
 #' @param snr S/N threshold. Only consulted when `signal_filter = "SNR"`.
-#' @param blank_filter Blank-filter factor; `FALSE` to skip.
-#' @param replace_MVs Scalar passed to [`imputeMissing()`]; `FALSE` to skip.
-#' @param batch_correction Logical.
+#' @param blank_filter Blank-filter factor; `FALSE` or `NULL` to skip.
+#' @param replace_MVs Scalar passed to [`imputeMissing()`]; `FALSE` or `NULL`
+#'   to skip. Applied last, after batch correction, normalisation and
+#'   concentration adjustment, per `processing_batch`.
+#' @param impute_method,impute_seed Passed to [imputeMissing()] as `method`
+#'   and `seed`: `"gaussian"` (default) draws each fill at random below the
+#'   per-feature ceiling, `"constant"` uses the ceiling itself.
+#' @param batch_correction `FALSE` (default) to skip, `TRUE` to correct every
+#'   feature, or the name of an `fdata` column holding `YES` / `NO` per
+#'   feature, so that only the `YES` features are corrected. Runs after
+#'   the blank and detection filters, on the instrument signal, and before
+#'   normalisation, concentration adjustment and imputation - see
+#'   [correctBatch()].
 #' @param bc_qc_label,bc_factor_name,bc_header Batch-correction parameters:
 #'   the reference-sample label, the column holding it, and the batch column.
 #'   Defaults to pooled QCs, which are the only reference guaranteed not to
@@ -54,9 +71,9 @@
 #'   `data_source = "matrix"`: the sample-identifier column (`NULL` = first)
 #'   and whether samples are rows or columns.
 #' @param processing_batch `sample_meta` column used to partition the *per-batch
-#'   processing* - blank filtering, normalisation, concentration adjustment and
-#'   imputation are each applied within a partition, so blanks and per-feature
-#'   minima are taken from the same acquisition as the samples they apply to.
+#'   processing* - blank filtering and imputation are each applied within a
+#'   partition, so blanks and per-feature minima are taken from the same
+#'   acquisition as the samples they apply to.
 #'   `NULL` (default) reuses `bc_header`, which is what earlier versions did
 #'   implicitly; `FALSE` processes every sample together. This is a separate
 #'   question from which column defines the batch-correction reference, even
@@ -73,7 +90,8 @@
 #'   arguments for [filterSamples()] - `max_na`, `sample_col`,
 #'   `sample_labels`. Runs after `filter_features`, on the reduced feature
 #'   set, so the missing-value fraction means something.
-#' @param normalize Metadata column used as divisor, or `FALSE`.
+#' @param normalize Metadata column used as divisor, or `FALSE`/`NULL` for
+#'   none.
 #' @param adjust_conc Logical master toggle for concentration adjustment via
 #'   [adjustConcentration()], using `sample_vol_col`, `cal_vol_col`,
 #'   `sample_IS_col`, `cal_IS_col` and `starting_vol_col`.
@@ -101,9 +119,11 @@
 #'   table curated outside a TargetLynx workflow.
 #' @param comment_col `feature_metadata` column used to record why a feature
 #'   was excluded. Default `"Comment"`.
-#' @return A named list with `dataset` (the `DatasetExperiment`) and
-#'   `excluded_features` (a data frame of features dropped along the way, with
-#'   the reason recorded). The elements stay in that order, so existing code
+#' @return A named list with `dataset` (the `DatasetExperiment`, imputed when
+#'   `replace_MVs` is set), `excluded_features` (a data frame of features
+#'   dropped along the way, with the reason recorded) and `measured` (the same
+#'   dataset before imputation, gaps included; identical to `dataset` when
+#'   nothing was imputed). The first two stay in that order, so existing code
 #'   indexing `[[1]]` and `[[2]]` keeps working.
 #' @examples
 #' xlsx  <- system.file("extdata", "example_data.xlsx", package = "MRManalyzeR")
@@ -122,13 +142,15 @@ processDataset = function(fdata,
                               metadata,
                               xlsx_path = NULL,
                               data_source = "targetlynx",
-                              data_tab_names = "skyline_data",
+                              data_tab_names = NULL,
                               datatype = "Area",
                               tl_headers = c("ID", "Name", "Area", "ng/mL", "Response", "S/N"),
                               signal_filter = NULL,
                               snr = 5,
                               blank_filter = 5,
                               replace_MVs = FALSE,
+                              impute_method = "gaussian",
+                              impute_seed = 42,
                               batch_correction = FALSE,
                               bc_qc_label = "QC",
                               bc_factor_name = "Sample_type",
@@ -191,6 +213,8 @@ processDataset = function(fdata,
 
   if(!data_source %in% c("targetlynx", "skyline", "matrix"))
     stop("[processDataset] data_source must be 'targetlynx', 'skyline' or 'matrix'.")
+  # Checked now rather than when imputation is reached, at the end of the run.
+  impute_method = match.arg(impute_method, c("gaussian", "constant"))
 
   # Backwards compatibility: YAMLs that only set `snr:` (no `signal_filter:`)
   # keep working unchanged - infer the filter mode from `snr`.
@@ -214,14 +238,37 @@ processDataset = function(fdata,
       "[processDataset] signal_filter='%s' but feature_metadata has no '%s' column.",
       signal_filter, signal_filter))
 
+  # --- Batch-correction selection -----------------------------------------
+  # TRUE corrects every feature; a string names an fdata column of YES / NO.
+  # Checked before the data sheets are read, so a typo costs seconds rather
+  # than a whole processing run. The header is matched as typed or in the
+  # make.names() form assembleDataset() stores it under - correctBatch()
+  # accepts both, so this check has to as well.
+  bc_on = isTRUE(batch_correction) || is.character(batch_correction)
+  if(is.character(batch_correction)){
+    bc_col = NA_character_
+    if(length(batch_correction) == 1L)
+      bc_col = if(batch_correction %in% colnames(fdata)) batch_correction else
+        colnames(fdata)[match(make.names(batch_correction),
+                              make.names(colnames(fdata)))]
+    if(is.na(bc_col))
+      stop(sprintf(
+        "[processDataset] batch_correction = '%s' is not True, False or a feature_metadata column (got: %s).",
+        paste(batch_correction, collapse = ", "),
+        paste(colnames(fdata), collapse = ", ")), call. = FALSE)
+    invisible(.yes_no(fdata[[bc_col]][fdata$Report == "YES"],
+                      batch_correction))
+  }
+
   # --- Validation ---------------------------------------------------------
   # Only complain about a column the run will actually consult: warning that
   # blank_head is missing when blank_filter is off is noise, and noise is what
   # makes the real warnings easy to skip past.
-  needed_heads = c(if(isTRUE(batch_correction)) c(bc_factor_name, bc_header),
-                   if(!isFALSE(blank_filter))   blank_head)
+  needed_heads = c(if(bc_on) c(bc_factor_name, bc_header),
+                   if(!isFALSE(blank_filter) &&
+                      !is.null(blank_filter)) blank_head)
   for(h in unique(needed_heads)){
-    if(!h %in% colnames(metadata))
+    if(is.null(.resolve_meta_col(h, metadata)))
       warning(sprintf("'%s' not a metadata column.", h))
   }
 
@@ -229,42 +276,60 @@ processDataset = function(fdata,
   fnames = fdata$Processing_name[fdata$Report == "YES"]
   snames = metadata[[name_col]][which(metadata[[include_col]] == include_value)]
 
+  # --- Sheets -------------------------------------------------------------
+  # NULL means each reader's usual sheets. TargetLynx keeps NULL, which
+  # extractTable() reads as every sheet whose name contains "lcms_data".
+  if(is.null(data_tab_names) && !identical(data_source, "targetlynx"))
+    data_tab_names = if(identical(data_source, "skyline"))
+      "skyline_data" else "matrix_data"
+
   # --- Read raw matrix (format-specific) + apply signal filter ------------
   if(identical(data_source, "targetlynx")){
 
     # readTargetLynx() reads + pivots + (optionally) SNR-masks the full sheet;
     # restrict to reportable compounds (fnames) and included samples (snames)
     # here, exactly as the old pre-pivot filter did.
-    out_table = readTargetLynx(xlsx_path, datatype = datatype,
-                                tl_headers = tl_headers,
-                                snr = if(identical(signal_filter, "SNR")) snr else FALSE,
-                                data_tab_names = data_tab_names)
-    out_table = out_table[rownames(out_table) %in% snames,
-                          colnames(out_table) %in% fnames, drop = FALSE]
+    snr_use = if(identical(signal_filter, "SNR")) snr else FALSE
+    tl = .read_targetlynx(xlsx_path, datatype = datatype,
+                          tl_headers = tl_headers, snr = snr_use,
+                          data_tab_names = data_tab_names)
+    keep_r    = rownames(tl$masked) %in% snames
+    keep_c    = colnames(tl$masked) %in% fnames
+    out_table = tl$masked[keep_r, keep_c, drop = FALSE]
+    raw_table = tl$raw[keep_r, keep_c, drop = FALSE]
 
   } else if(identical(data_source, "skyline")){
 
     if(is.null(xlsx_path))
       stop("[processDataset] xlsx_path is required when data_source='skyline'.")
 
-    out_table = readSkyline(xlsx_path, data_tab_names, fdata,
-                             signal_filter = if(signal_filter %in% c("LOD", "LOQ")) signal_filter else FALSE)
-    out_table = out_table[rownames(out_table) %in% snames, , drop = FALSE]
+    # readSkyline()'s two steps, split so the unmasked matrix is kept too.
+    raw_table = .read_skyline_matrix(xlsx_path, data_tab_names, fdata)
+    out_table = raw_table
+    if(signal_filter %in% c("LOD", "LOQ"))
+      out_table = .apply_lod_loq_mask(raw_table, fdata,
+                                      floor_col = signal_filter)
+    keep_r    = rownames(out_table) %in% snames
+    out_table = out_table[keep_r, , drop = FALSE]
+    raw_table = raw_table[keep_r, , drop = FALSE]
 
   } else {   # data_source == "matrix"
 
     if(is.null(xlsx_path))
       stop("[processDataset] xlsx_path is required when data_source='matrix'.")
 
-    out_table = readPeakMatrix(xlsx_path, data_tab_names,
+    raw_table = readPeakMatrix(xlsx_path, data_tab_names,
                                  id_col      = matrix_id_col,
                                  orientation = matrix_orientation)
     # A generic matrix carries no S/N, but it may still have a per-compound
     # LOD/LOQ in feature_metadata, so the same mask applies.
+    out_table = raw_table
     if(signal_filter %in% c("LOD", "LOQ"))
       out_table = .apply_lod_loq_mask(out_table, fdata,
                                       floor_col = signal_filter)
-    out_table = out_table[rownames(out_table) %in% snames, , drop = FALSE]
+    keep_r    = rownames(out_table) %in% snames
+    out_table = out_table[keep_r, , drop = FALSE]
+    raw_table = raw_table[keep_r, , drop = FALSE]
   }
 
   # --- Mismatch diagnostics ----------------------------------------------
@@ -305,6 +370,12 @@ processDataset = function(fdata,
   # Drop all-NA features (vectorized via colSums)
   keep_col = colSums(!is.na(out_table)) > 0
   remove_feats = names(out_table)[!keep_col]
+  # Was each feature measured at all in the included samples, before any
+  # signal filter masked it? Separates "never measured" from "filtered out"
+  # in the reason recorded below. raw_table has out_table's rows and columns.
+  had_value = stats::setNames(
+    colSums(!is.na(raw_table[, orig_names[!unmapped], drop = FALSE])) > 0,
+    colnames(out_table))
   out_table    = out_table[, keep_col, drop = FALSE]
 
   # --- Per-batch processing ----------------------------------------------
@@ -318,7 +389,7 @@ processDataset = function(fdata,
   proc_batch = if(asked_for) processing_batch else bc_header
 
   if(!isFALSE(proc_batch) && !is.null(proc_batch) &&
-     !proc_batch %in% colnames(meta_yes)){
+     is.null(.resolve_meta_col(proc_batch, meta_yes))){
     if(asked_for){
       # Named outright, so a missing column is a mistake worth stopping for.
       stop(sprintf(
@@ -337,11 +408,11 @@ processDataset = function(fdata,
   if(is.null(proc_batch)) proc_batch = FALSE
 
   # The correction column is only needed if correction is actually requested.
-  if(isTRUE(batch_correction) &&
+  if(bc_on &&
      (is.null(bc_header) || isFALSE(bc_header) ||
-      !bc_header %in% colnames(meta_yes))){
+      is.null(.resolve_meta_col(bc_header, meta_yes)))){
     stop(sprintf(
-      "batch_correction is TRUE but bc_header='%s' is not a column in sample_metadata (got: %s).",
+      "batch_correction is on but bc_header='%s' is not a column in sample_metadata (got: %s).",
       bc_header %||% "<NULL>",
       paste(colnames(meta_yes), collapse = ", ")))
   }
@@ -356,6 +427,13 @@ processDataset = function(fdata,
   }
   lcms_experiment = assembleDataset(out_table, fdata, metadata, name_col = name_col)
 
+  # assembleDataset() stores headings in make.names() form (Chrom-Batch ->
+  # Chrom.Batch), so look the processing-batch column up under that name.
+  if(!isFALSE(proc_batch)){
+    smeta_st   = as.data.frame(lcms_experiment$sample_meta)
+    proc_batch = .resolve_meta_col(proc_batch, smeta_st) %||% proc_batch
+  }
+
   # Treat NA / "" bc_header values (e.g. blanks, QCs that weren't
   # cryosectioned) as a single "_unbatched_" group so they survive the
   # per-batch split instead of being silently dropped via `NA == "x"`.
@@ -363,7 +441,7 @@ processDataset = function(fdata,
   bc_vec = if(isFALSE(proc_batch))
     rep("_all_", nrow(as.data.frame(lcms_experiment$data))) else
     as.character(as.data.frame(lcms_experiment$sample_meta)[[proc_batch]])
-  bc_vec[is.na(bc_vec) | !nzchar(bc_vec)] = "_unbatched_"
+  bc_vec[is.na(bc_vec) | !nzchar(trimws(bc_vec))] = "_unbatched_"
   batches = unique(bc_vec)
 
   # --- pass 1: blank filter, per batch ----------------------------------
@@ -372,7 +450,7 @@ processDataset = function(fdata,
   # safe.
   lcms_experiment = .run_per_batch(
     lcms_experiment, bc_vec, batches,
-    function(d) if(isFALSE(blank_filter)) d else
+    function(d) if(isFALSE(blank_filter) || is.null(blank_filter)) d else
       filterBlanks(d, blank_filter = blank_filter,
                    blank_head = blank_head, blank_name = blank_name))
 
@@ -401,44 +479,57 @@ processDataset = function(fdata,
       max_na        = fs$max_na        %||% 0.8,
       sample_col    = fs$sample_col    %||% "Sample_type",
       sample_labels = fs$sample_labels %||% "Sample")
-    # filterSamples can remove rows, so the batch split has to be rebuilt
-    # before anything else is done per batch.
-    bc_vec = if(isFALSE(proc_batch))
-      rep("_all_", nrow(as.data.frame(lcms_experiment$data))) else
-      as.character(as.data.frame(lcms_experiment$sample_meta)[[proc_batch]])
-    bc_vec[is.na(bc_vec) | !nzchar(bc_vec)] = "_unbatched_"
-    batches = unique(bc_vec)
   }
 
-  # --- pass 2: normalise / concentration / imputation, per batch ---------
-  lcms_experiment = .run_per_batch(
-    lcms_experiment, bc_vec, batches,
-    function(d) .process_batch_rest(
-      d,
-      blank_head       = blank_head,
-      blank_name       = blank_name,
-      normalize        = normalize,
-      adjust_conc      = adjust_conc,
-      starting_vol_col = starting_vol_col,
-      sample_vol_col   = sample_vol_col,
-      cal_vol_col      = cal_vol_col,
-      sample_IS_col    = sample_IS_col,
-      cal_IS_col       = cal_IS_col,
-      replace_MVs      = replace_MVs))
+  # --- batch correction, GLOBAL ------------------------------------------
+  # Straight after the filters, on the instrument signal: a batch effect is a
+  # property of the measurement, and normalising first would rescale the QC
+  # reference by per-sample amounts pooled QCs usually do not have. Before
+  # imputation too, so a batch median describes what was measured rather than
+  # values imputation filled in.
+  if(bc_on)
+    lcms_experiment = correctBatch(
+      lcms_experiment,
+      qc_label     = bc_qc_label,
+      check_factor = bc_check_factor,
+      factor_name  = bc_factor_name,
+      batch_head   = bc_header,
+      feature_col  = if(is.character(batch_correction)) batch_correction)
 
+  # --- normalise / concentration adjustment --------------------------------
+  # Per-sample divisors and factors, so no batch split is needed.
+  lcms_experiment = .scale_samples(
+    lcms_experiment,
+    normalize        = normalize,
+    adjust_conc      = adjust_conc,
+    starting_vol_col = starting_vol_col,
+    sample_vol_col   = sample_vol_col,
+    cal_vol_col      = cal_vol_col,
+    sample_IS_col    = sample_IS_col,
+    cal_IS_col       = cal_IS_col)
 
-  if(isTRUE(batch_correction))
-    lcms_experiment = correctBatch(lcms_experiment,
-                                    qc_label     = bc_qc_label,
-                                    check_factor = bc_check_factor,
-                                    factor_name  = bc_factor_name,
-                                    batch_head  = bc_header)
+  # --- imputation, per processing batch, LAST ------------------------------
+  # Last, because it destroys the missingness every step above relies on. The
+  # dataset as measured is kept as well: the reports use it by default.
+  measured = lcms_experiment
+  if(!isFALSE(replace_MVs) && !is.null(replace_MVs))
+    lcms_experiment = imputeMissing(
+      lcms_experiment, scalar = replace_MVs,
+      blank_head = blank_head, blank_name = blank_name,
+      method = impute_method, seed = impute_seed,
+      by = if(isFALSE(proc_batch)) NULL else proc_batch)
 
   # --- Record removed features -------------------------------------------
-  fail_reason = if(identical(signal_filter, FALSE)) "All-NA after processing"
-                else sprintf("All values below %s threshold", signal_filter)
+  # Two different reasons: nothing was measured in the included samples, or
+  # something was and the signal filter removed all of it.
+  never_seen = remove_feats[!had_value[remove_feats] %in% TRUE]
+  filtered   = setdiff(remove_feats, never_seen)
   fdata$Report [fdata$Compound %in% remove_feats] = "NO"
-  fdata$Comment[fdata$Compound %in% remove_feats] = fail_reason
+  fdata$Comment[fdata$Compound %in% never_seen] =
+    "No values in the included samples"
+  if(length(filtered))
+    fdata$Comment[fdata$Compound %in% filtered] =
+      sprintf("All values below %s threshold", signal_filter)
 
   # Flag features whose Processing_name appears in fdata but has no rows
   # in the source data (compound never reported for any sample).
@@ -474,7 +565,8 @@ processDataset = function(fdata,
   }
 
   # Named, but the order is unchanged so out[[1]] / out[[2]] still work.
-  list(dataset = lcms_experiment, excluded_features = removed_features)
+  list(dataset = lcms_experiment, excluded_features = removed_features,
+       measured = measured)
 }
 
 
@@ -517,25 +609,21 @@ processDataset = function(fdata,
   out_table
 }
 
-#' Run normalise / concentration / MV-impute on one batch
+#' Normalise and concentration-adjust every sample
 #'
-#' The blank filter and the detection filters used to live here too. They were
-#' pulled out because they answer questions at different scopes: a blank
-#' threshold belongs to a batch, a detection fraction belongs to the study, and
-#' imputation has to come last because it destroys the missingness both of the
-#' others measure. See processDataset() for the order.
+#' Both steps are per-sample divisors or factors, so they need no batch
+#' split. They run after batch correction and before imputation - see
+#' processDataset() for the order and why.
 #'
 #' Operates on a `DatasetExperiment` so each step reads what it needs
-#' (divisors, volumes, blank rows) straight from `sample_meta`.
+#' (divisors, volumes) straight from `sample_meta`.
 #' @keywords internal
 #' @noRd
-.process_batch_rest = function(de, blank_head, blank_name,
-                               normalize, adjust_conc, starting_vol_col,
-                               sample_vol_col, cal_vol_col,
-                               sample_IS_col, cal_IS_col,
-                               replace_MVs){
+.scale_samples = function(de, normalize, adjust_conc, starting_vol_col,
+                          sample_vol_col, cal_vol_col,
+                          sample_IS_col, cal_IS_col){
 
-  if(!isFALSE(normalize))
+  if(!isFALSE(normalize) && !is.null(normalize))
     de = normaliseMatrix(de, column = normalize)
 
   # Vial-level concentration correction (+ optional starting-volume
@@ -547,10 +635,6 @@ processDataset = function(fdata,
                               sample_IS_col    = sample_IS_col,
                               cal_IS_col       = cal_IS_col,
                               starting_vol_col = starting_vol_col)
-
-  if(!isFALSE(replace_MVs))
-    de = imputeMissing(de, scalar = replace_MVs,
-                        blank_head = blank_head, blank_name = blank_name)
 
   de
 }

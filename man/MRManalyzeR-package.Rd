@@ -8,9 +8,9 @@
 \description{
 Processes and analyses targeted lipidomics and metabolomics data exported from
 Waters TargetLynx or Skyline: builds a peak-area / concentration matrix with
-signal-to-noise or LOD/LOQ filtering, blank filtering, normalisation,
-calibration/internal-standard concentration adjustment, missing-value
-imputation and batch correction, then runs the statistical analyses and
+signal-to-noise or LOD/LOQ filtering, blank filtering, batch correction,
+normalisation, calibration/internal-standard concentration adjustment and
+missing-value imputation, then runs the statistical analyses and
 renders two self-contained HTML reports.
 }
 \details{
@@ -36,8 +36,8 @@ config, a stored dataset, and several datasets merged into one.
 
 \section{2. Peak-matrix processing}{
 
-What is the true concentration? [filterBlanks()], [normaliseMatrix()],
-[adjustConcentration()], [imputeMissing()] and [correctBatch()], with
+What is the true concentration? [filterBlanks()], [correctBatch()],
+[normaliseMatrix()], [adjustConcentration()] and [imputeMissing()], with
 [subsetDataset()] to slice a dataset by sample metadata.
 [processDataset()] composes stages 1 and 2 in one call.
 }

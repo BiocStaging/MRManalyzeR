@@ -77,7 +77,10 @@ combineDatasets = function(paths,
 
   duplicate_samples = match.arg(duplicate_samples)
   stopifnot(length(paths) >= 1)
-  stopifnot(all(file.exists(paths)))
+  miss = paths[!file.exists(paths)]
+  if(length(miss))
+    stop("[combineDatasets] input file(s) not found:\n  ",
+         paste(miss, collapse = "\n  "), call. = FALSE)
   if(!identical(prefix_features, FALSE) &&
      !identical(prefix_features, TRUE)  &&
      !identical(prefix_features, "auto"))
@@ -131,10 +134,10 @@ combineDatasets = function(paths,
       }
     }
 
-    # 1. Deduplication: any sample type can have a repeated Sample_ID (repeated
-    # QC injections, data-entry errors, etc.). Collapse to first occurrence and
-    # log which IDs were affected. The combine only needs each ID once; blanks
-    # and other non-biological samples are filtered later by biological_filter.
+    # 1. Duplicate Sample_IDs: any sample type can repeat one (re-injected QCs,
+    # data-entry errors). duplicate_samples decides what happens - by default
+    # the run stops, see below. Blanks and other non-biological samples are
+    # filtered later by the report's sample_labels.
     sid_tmp = as.character(smeta[[sample_id_col]])
     dup_any = duplicated(sid_tmp)
     if(any(dup_any)){

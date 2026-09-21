@@ -61,6 +61,9 @@ combine:
 # Same schema as the standard MRManalyzeR stats_report block.
 stats_report:
   execute: True
+  use_imputed: False                    # True = statistics on the merge of the
+                                        # panels' imputed matrices; False = on
+                                        # their _measured.RDS where stored
 
   # -- colours (shared by every plot in this report) --
   colours:
@@ -109,7 +112,8 @@ stats_report:
     preprocess:
       feat_na_max:   1                 # 1 = keep all (allow up to 100% NA)
       sample_na_max: 1                 # 1 = keep all
-      impute:      min                 # none | min | half_min | frac_min
+      impute:      gaussian            # gaussian | frac_min | min | half_min | none
+      seed:        42                  # random draws for gaussian
       impute_frac: 0.5
       transform:   log2                # none | log2 | sqrt
       center:      True

@@ -10,8 +10,9 @@
 #' compounds spanning three orders of magnitude are comparable in one picture -
 #' without it the abundant compounds dominate and everything else is a flat
 #' wash. Scores are capped at `cap` standard deviations so one outlier cannot
-#' consume the whole colour range. Zero-variance compounds are dropped, and
-#' remaining missing values become 0 (the row mean after scaling).
+#' consume the whole colour range. Zero-variance compounds are dropped.
+#' Missing values are drawn grey; only for ordering and clustering do they
+#' count as the compound's mean (0 after scaling).
 #'
 #' Compounds are ordered into contiguous blocks by `group_features_by`, with
 #' gaps drawn between blocks, and clustered *within* each block when
@@ -110,7 +111,6 @@ plotHeatmap = function(de, features = NULL, title = NULL,
   if(ncol(M) == 0) return(NULL)
 
   if(scale == "z") M = scale(M, center = TRUE, scale = TRUE)
-  M[is.na(M)] = 0
   M[M >  cap] =  cap
   M[M < -cap] = -cap
 
@@ -128,7 +128,9 @@ plotHeatmap = function(de, features = NULL, title = NULL,
     ordered = unlist(lapply(levels_in_order, function(k){
       in_k = feats[g == k]
       if(isTRUE(cluster_within_groups) && length(in_k) > 1){
-        d = stats::dist(t(M[, in_k, drop = FALSE]))
+        Mk = M[, in_k, drop = FALSE]
+        Mk[is.na(Mk)] = 0
+        d = stats::dist(t(Mk))
         if(all(is.finite(d)))
           in_k = in_k[stats::hclust(d, method = "average")$order]
       }
@@ -152,6 +154,15 @@ plotHeatmap = function(de, features = NULL, title = NULL,
 
   ann_colors = c(.ann_colours(ann_row), .ann_colours(ann_col))
 
+  # Samples are clustered on a copy with gaps at the compound mean, so a gap
+  # cannot break the clustering; in the picture itself gaps stay grey.
+  hc = FALSE
+  if(isTRUE(cluster_rows) && nrow(M) > 1){
+    M_fill = M
+    M_fill[is.na(M_fill)] = 0
+    hc = stats::hclust(stats::dist(M_fill), method = "complete")
+  }
+
   flip = identical(orientation, "samples_x") ||
     (identical(orientation, "auto") && nrow(M) > ncol(M))
 
@@ -159,12 +170,12 @@ plotHeatmap = function(de, features = NULL, title = NULL,
     M_use = t(M)
     ann_row_use = ann_col;  ann_col_use = ann_row
     gaps_row_use = gaps_col; gaps_col_use = gaps_row
-    cluster_rows_use = FALSE; cluster_cols_use = cluster_rows
+    cluster_rows_use = FALSE; cluster_cols_use = hc
   } else {
     M_use = M
     ann_row_use = ann_row;  ann_col_use = ann_col
     gaps_row_use = gaps_row; gaps_col_use = gaps_col
-    cluster_rows_use = cluster_rows; cluster_cols_use = FALSE
+    cluster_rows_use = hc; cluster_cols_use = FALSE
   }
 
   feat_fs   = switch(feature_labels, show = 9, small = 4, 4)
@@ -193,6 +204,7 @@ plotHeatmap = function(de, features = NULL, title = NULL,
     show_rownames = show_rn, show_colnames = show_cn,
     fontsize_row  = fs_row,  fontsize_col  = fs_col,
     border_color  = NA,
+    na_col        = "grey85",
     legend_breaks = c(-cap, -1, 0, 1, cap),
     legend_labels = c(sprintf("<= -%g", cap), "-1", "0", "1",
                       sprintf(">= %g", cap)),

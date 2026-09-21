@@ -87,8 +87,11 @@ plotCorrelation = function(correlations, variable_meta = NULL,
 
   clust_within = function(fs){
     if(isTRUE(cluster) && length(fs) > 2){
-      d = tryCatch(stats::as.dist(1 - abs(M[fs, fs, drop = FALSE])),
-                   error = function(e) NULL)
+      # A pair with no estimate counts as unrelated, so one gap does not
+      # stop the whole block from being clustered.
+      D = 1 - abs(M[fs, fs, drop = FALSE])
+      D[is.na(D)] = 1
+      d = tryCatch(stats::as.dist(D), error = function(e) NULL)
       h = if(!is.null(d)) tryCatch(stats::hclust(d, method = "average"),
                                    error = function(e) NULL) else NULL
       if(!is.null(h)) fs = fs[h$order]
