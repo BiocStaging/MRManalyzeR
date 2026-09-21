@@ -93,6 +93,32 @@ test_that("a dropped feature says whether it was never measured or filtered", {
                "All values below LOD threshold")
 })
 
+test_that("a zero is read as a non-detect", {
+  td   <- withr::local_tempdir()
+  xlsx <- file.path(td, "skyline.xlsx")
+  samp <- paste0("S", 1:3)
+  sheet <- data.frame(Molecule = c("PGE2", "PGD2"),
+                      matrix(c(10, 0, 12,
+                               0,  0, 0), nrow = 2, byrow = TRUE,
+                             dimnames = list(NULL, samp)),
+                      check.names = FALSE)
+  openxlsx::write.xlsx(list(skyline_data = sheet), xlsx)
+  fdata <- data.frame(Processing_name = sheet$Molecule,
+                      Compound = sheet$Molecule, Report = "YES", Comment = "")
+  meta  <- data.frame(Name = samp, Include = "YES", Sample_type = "Sample")
+
+  out <- suppressWarnings(suppressMessages(
+    processDataset(fdata, meta, xlsx_path = xlsx, data_source = "skyline",
+                   signal_filter = FALSE, blank_filter = FALSE,
+                   processing_batch = FALSE)))
+  d <- as.data.frame(out$measured$data)
+  expect_equal(sum(is.na(d$PGE2)), 1)
+  expect_false(any(d == 0, na.rm = TRUE))
+  ex <- out$excluded_features
+  expect_equal(ex$Comment[ex$Compound == "PGD2"],
+               "No values in the included samples")
+})
+
 test_that("processDataset keeps the measured dataset beside the imputed one", {
   xlsx <- system.file("extdata", "example_data.xlsx", package = "MRManalyzeR")
   skip_if(!nzchar(xlsx), "Bundled example_data.xlsx not installed")

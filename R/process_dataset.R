@@ -17,6 +17,11 @@
 #' rescaling, and imputation comes last so every earlier step sees only
 #' measured values.
 #'
+#' A value of 0 is read as a non-detect and set to `NA` straight after
+#' reading, so no step counts it as a measurement: the detection filters count
+#' it as missing, the blank filter leaves it out of the blank mean, and a
+#' matrix that is not imputed shows a gap.
+#'
 #' @param fdata Feature metadata. Must contain the columns named by
 #'   `compound_col`, `processing_name_col`, `report_col` (defaults
 #'   `Compound` / `Processing_name` / `Report`). For `signal_filter = "LOD"`
@@ -331,6 +336,14 @@ processDataset = function(fdata,
     out_table = out_table[keep_r, , drop = FALSE]
     raw_table = raw_table[keep_r, , drop = FALSE]
   }
+
+  # --- Zeros are non-detects ---------------------------------------------
+  # TargetLynx reports an area of 0 when it finds no peak: nothing was
+  # measured, rather than zero. Set to NA before any step counts it, so the
+  # detection filters see it as missing and an unimputed matrix shows a gap.
+  # raw_table too, so an all-zero compound is recorded as never measured.
+  out_table[!is.na(out_table) & out_table == 0] = NA
+  raw_table[!is.na(raw_table) & raw_table == 0] = NA
 
   # --- Mismatch diagnostics ----------------------------------------------
   # Track features that exist in fdata$Processing_name but have no row in

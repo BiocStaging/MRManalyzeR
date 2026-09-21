@@ -205,6 +205,11 @@ a `struct::DatasetExperiment` ([assembleDataset()]); applies
 Batch correction works on the instrument signal, before any per-sample
 rescaling, and imputation comes last so every earlier step sees only
 measured values.
+
+A value of 0 is read as a non-detect and set to `NA` straight after
+reading, so no step counts it as a measurement: the detection filters count
+it as missing, the blank filter leaves it out of the blank mean, and a
+matrix that is not imputed shows a gap.
 }
 \examples{
 xlsx  <- system.file("extdata", "example_data.xlsx", package = "MRManalyzeR")

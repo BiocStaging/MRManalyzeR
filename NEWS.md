@@ -88,6 +88,16 @@
   set, and a run with `execute: False` on it warns that its reports will use
   imputed values.
 
+* A zero in the data is read as a non-detect and set to `NA` straight after
+  reading, before any step sees it. TargetLynx reports an area of 0 when it
+  finds no peak, and that 0 used to count as a measurement: the detection
+  filters took it as detected, and in the measured matrix it pulled group
+  means, CVs and tests down. It is now a gap wherever the matrix is not
+  imputed, as imputation and the PCA already treated it. The blank filter
+  leaves such a blank out of its mean, as it does a value the signal filter
+  masked, and a compound that is zero in every included sample is dropped as
+  "No values in the included samples".
+
 * On measured data, gaps show as gaps: the heatmap draws them grey instead of
   as the compound's mean, and a correlation resting on fewer than three shared
   samples is left blank instead of drawn as a perfect +/-1.
