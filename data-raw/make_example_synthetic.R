@@ -200,7 +200,7 @@ de <- processDataset(
   normalize        = "protein_ug",
   adjust_conc      = TRUE,
   starting_vol_col = "starting_vol_uL",
-  replace_MVs      = 0.5,
+  replace_MVs      = 0.2,
   batch_correction = TRUE,
   bc_qc_label      = "QC",
   bc_factor_name   = "Sample_type",

@@ -226,8 +226,8 @@ This writes, into `paths.result_dir`:
   parameters, plus `_measured.RDS` when `replace_MVs` is set
 
 The reports and statistics use the measured values; set `use_imputed: True`
-in a report's block to give it the imputed matrix instead. The PCAs impute for
-themselves either way.
+in a report's block to give it the imputed matrix instead. The PCAs use the
+imputed values when `replace_MVs` is set, and impute for themselves otherwise.
 
 The bundled config sets `suffix: _`, which is why the shipped examples read
 `example_data_ng_mL__stats.xlsx` with two underscores. Set `suffix: ""` for

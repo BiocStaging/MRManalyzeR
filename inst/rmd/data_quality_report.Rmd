@@ -337,6 +337,14 @@ function showQQPlot_%s(id){
 # Subset to requested sample types
 keep = metadata[[qc_pca_head]] %in% qc_pca_levels
 X = as.matrix(data_matrix[keep, , drop = FALSE])
+# Values from the exported matrix: what replace_MVs imputed, so runPCA()
+# fills only what is still missing.
+.P = get0("pca_datamatrices")
+if(!is.null(.P)){
+  .P = as.matrix(as.data.frame(.P$data))
+  if(all(rownames(X) %in% rownames(.P)) && all(colnames(X) %in% colnames(.P)))
+    X = .P[rownames(X), colnames(X), drop = FALSE]
+}
 smeta_pca = metadata[keep, , drop = FALSE]
 
 # Ensure shared rownames on X and smeta_pca so we can re-align after the

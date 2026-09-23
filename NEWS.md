@@ -75,9 +75,11 @@
   `matrix` sheet and the RDS still hold the imputed matrix, and a
   `matrix_measured` sheet and `<name>_measured.RDS` are added beside them. The
   data-quality report and the statistics (tests, summaries, boxplots, volcano)
-  use the measured values, CVs are computed on them, and the PCA imputes for
-  itself. `use_imputed: True` in either report block switches that report to
-  the imputed matrix. `processDataset()` returns the measured dataset as
+  use the measured values and CVs are computed on them. The PCAs use the
+  values `replace_MVs:` imputed, the same as the xlsx matrix, and impute for
+  themselves only what is still missing - everything, when `replace_MVs:` is
+  off. `use_imputed: True` in either report block switches that report's
+  tests and plots to the imputed matrix. `processDataset()` returns the measured dataset as
   `measured`. Combine mode does the same: the merged matrix is built from
   what each panel exported, and where panels stored a `_measured.RDS` a
   merge of those is written beside it (`matrix_measured`,
@@ -142,6 +144,9 @@
   all.
 
 * `combineDatasets()` names any input file it cannot find.
+
+* Reading a TargetLynx export no longer raises a tidyselect deprecation
+  warning about an external vector in a selection.
 
 * In combine mode, `qc_remap:` and `feature_meta_rename:` on a tagged panel
   now apply when another panel has no tag. They were looked up under the tag,

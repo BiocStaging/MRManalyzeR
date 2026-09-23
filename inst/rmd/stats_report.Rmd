@@ -350,7 +350,7 @@ heatmap) inspection per comparison.
 
 **Missing-value policy** (which sections impute and which don't):
 
-`r .n_imp = .n_imputed_total(combined_datamatrices); .is_imp = if(exists("values_imputed")) isTRUE(values_imputed) else .n_imp > 0; if(.is_imp) sprintf("This report uses an **imputed** matrix - %s - so the sections below that say *no imputation* include filled-in values%s.", if(.n_imp > 0) sprintf("%d value(s) in it were filled in (\x60n_imputed\x60 in the workbook)", .n_imp) else "how many values were filled in was not recorded", if(isTRUE(report_pars$use_imputed)) " (\x60use_imputed: True\x60)" else ": its input was imputed, e.g. a combine input or a dataset stored before measured values were kept") else "This report uses the values as **measured**, gaps included; nothing in it was imputed."`
+`r .n_imp = .n_imputed_total(combined_datamatrices); .is_imp = if(exists("values_imputed")) isTRUE(values_imputed) else .n_imp > 0; if(.is_imp) sprintf("This report uses an **imputed** matrix - %s - so the sections below that say *no imputation* include filled-in values%s.", if(.n_imp > 0) sprintf("%d value(s) in it were filled in (\x60n_imputed\x60 in the workbook)", .n_imp) else "how many values were filled in was not recorded", if(isTRUE(report_pars$use_imputed)) " (\x60use_imputed: True\x60)" else ": its input was imputed, e.g. a combine input or a dataset stored before measured values were kept") else "This report uses the values as **measured**, gaps included; only the PCA fills gaps - see its row in the table below."`
 
 | Section | NA handling |
 |---|---|
@@ -358,7 +358,7 @@ heatmap) inspection per comparison.
 | Boxplots (per-compound + by-factor) | **No imputation** — raw values plotted; NAs simply absent from the boxes/jitter. |
 | Correlations | **No imputation** — `pairwise.complete.obs` (each pair uses its own complete cases); a pair with fewer than 3 shared samples is left blank. |
 | Linear models | `lm()` drops rows with NA in the feature or any predictor (per feature). |
-| PCA (global + per-comparison) | Imputed per `pca.preprocess.impute` (default in this config: `r pca_impute``r if(pca_impute %in% c("frac_min", "gaussian")) sprintf(" with frac=%g", pca_impute_frac) else ""`), then transform → centre → scale. |
+| PCA (global + per-comparison) | `r if(isTRUE(get0("pca_imputed"))) "The values imputed in pre-processing (\x60replace_MVs\x60), as in the xlsx matrix" else sprintf("Imputed per \x60pca.preprocess.impute\x60 (in this config: %s%s)", pca_impute, if(pca_impute %in% c("frac_min", "gaussian")) sprintf(" with frac=%g", pca_impute_frac) else "")`, then transform → centre → scale. |
 | Heatmap | After `r heatmap_transform` transform and per-feature z-scoring, values are capped at ±2.5. Missing cells are drawn grey; only for ordering and clustering do they count as the per-feature mean. |
 | Volcano | Inherits the comparisons table, so no imputation in the underlying p-values; rows missing log2FC or p are dropped from the plot. |
 
@@ -867,6 +867,14 @@ tab is a **global** PCA across the biological subset, coloured by
 # when sample_na_max < 1 drops any rows.
 .pca_run_one = function(de){
   M  = as.matrix(de$data)
+  # Same samples and compounds, values from the exported matrix: what
+  # replace_MVs imputed, so runPCA() fills only what is still missing.
+  P = get0("pca_datamatrices")
+  if(!is.null(P)){
+    P = as.matrix(as.data.frame(P$data))
+    if(all(rownames(M) %in% rownames(P)) && all(colnames(M) %in% colnames(P)))
+      M = P[rownames(M), colnames(M), drop = FALSE]
+  }
   sm = de$sample_meta
   # Anchor rownames so we can subset sm after the pipeline drops rows.
   rn = if(!is.null(rownames(M)) && !anyDuplicated(rownames(M))) rownames(M)

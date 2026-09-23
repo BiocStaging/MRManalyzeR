@@ -27,7 +27,8 @@
 #' values, never on imputed ones.
 #'
 #' Both reports and the statistics use the measured values unless their block
-#' sets `use_imputed: True`; the PCAs impute for themselves.
+#' sets `use_imputed: True`. The PCAs use the values `replace_MVs` imputed
+#' when it is set, and otherwise impute for themselves (`preprocess: impute:`).
 #'
 #' Output filenames are derived from `paths.fn` + `datatype` +
 #' `paths.suffix`, so when `PeakMatrixProcessing.execute: False` the code can
@@ -780,6 +781,12 @@ runMRManalyzeR = function(path_yaml){
     env$values_imputed = if(is.null(imputed))
       .n_imputed_total(env$combined_datamatrices) > 0 else
       isTRUE(imputed[[if(use_imp) "imputed" else "measured"]])
+    # The PCAs take the exported matrix: the values replace_MVs imputed when
+    # it is set, so they impute for themselves only what is still missing.
+    env$pca_datamatrices = combined_datamatrices
+    env$pca_imputed      = if(is.null(imputed))
+      .n_imputed_total(combined_datamatrices) > 0 else
+      isTRUE(imputed[["imputed"]])
     env$removed_features      = removed_features
     env$stats_tables          = stats_tables
 
@@ -1073,6 +1080,9 @@ runMRManalyzeRCombine = function(path_yaml){
     env$combined_datamatrices = st_data
     env$values_imputed        = .inputs_imputed(
       if(use_imp) paths else paths_meas, sid_col)
+    env$pca_datamatrices      = combined
+    env$pca_imputed           = if(use_imp) env$values_imputed else
+      .inputs_imputed(paths, sid_col)
     env$removed_features      = data.frame()
     env$stats_tables          = stats_tables
 

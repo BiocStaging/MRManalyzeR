@@ -1,6 +1,6 @@
 project: &general
   name: example-project
-  researcher: Matt Smith
+  researcher: Matthew J. Smith
 
   # See inst/extdata/example_combine_config.yml for the merge-multiple-
   # acquisitions workflow (runMRManalyzeRCombine()).
@@ -132,11 +132,12 @@ project: &general
       cal_IS_col:       "cal_IS_vol_uL"
 
     # 8. Missing-value imputation  (last)
-    replace_MVs: False                    # False | fraction of the per-feature minimum
+    replace_MVs: 0.2                      # False | fraction of the per-feature minimum
                                           # (e.g. 0.2) used as the fill ceiling. Set, it
                                           # imputes the output matrix (xlsx 'matrix', RDS)
                                           # and adds 'matrix_measured'; the reports still
                                           # use measured values unless use_imputed: True.
+                                          # The PCAs use these values too.
                                           # False: nothing imputed except inside PCA.
     impute_method: gaussian               # gaussian = random draws in (0, ceiling), normal
                                           # centred mid-range | constant = the ceiling
@@ -191,6 +192,7 @@ project: &general
         feat_na_max:   0.6                # drop features >60% missing
         sample_na_max: 0.6                # drop samples >60% missing
         impute:      gaussian             # gaussian | frac_min | min | half_min | none
+                                          # fills what replace_MVs left missing
         seed:        42                   # random draws for gaussian
         impute_frac: 0.2
         transform:   log2
@@ -200,8 +202,9 @@ project: &general
   # ========================= STATS REPORT ========================
   stats_report:
     execute: True
-    use_imputed: False                    # True = tests, plots and PCA on the replace_MVs
-                                          # matrix; False = measured values, PCA imputes
+    use_imputed: False                    # True = tests and plots on the replace_MVs
+                                          # matrix; False = measured values. The PCA
+                                          # uses the replace_MVs values either way.
 
     # -- colours (shared by every plot in this report) --
     colours:
@@ -271,6 +274,7 @@ project: &general
         feat_na_max:   0.6               # drop features >60% missing
         sample_na_max: 0.6               # drop samples >60% missing
         impute:      gaussian            # gaussian | frac_min | min | half_min | none
+                                         # fills what replace_MVs left missing
         seed:        42                  # random draws for gaussian
         impute_frac: 0.2
         transform:   log2                # none | log2 | sqrt

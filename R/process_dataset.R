@@ -600,7 +600,8 @@ processDataset = function(fdata,
     # indistinguishable from a genuine zero and lets them behave as real
     # measurements in blank filtering, normalisation and concentration
     # adjustment, which all run before any imputation step.
-    tidyr::pivot_wider(names_from = "ID", values_from = datatype,
+    tidyr::pivot_wider(names_from = "ID",
+                       values_from = dplyr::all_of(datatype),
                        id_cols = "Name", values_fill = NA_real_) %>%
     tibble::column_to_rownames("Name")
 }

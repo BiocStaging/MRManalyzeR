@@ -45,7 +45,8 @@ samples than between replicate injections of identical material. `CV_QC` is
 values, never on imputed ones.
 
 Both reports and the statistics use the measured values unless their block
-sets `use_imputed: True`; the PCAs impute for themselves.
+sets `use_imputed: True`. The PCAs use the values `replace_MVs` imputed
+when it is set, and otherwise impute for themselves (`preprocess: impute:`).
 
 Output filenames are derived from `paths.fn` + `datatype` +
 `paths.suffix`, so when `PeakMatrixProcessing.execute: False` the code can

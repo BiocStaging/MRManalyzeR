@@ -84,7 +84,7 @@ it, and from the existing targeted-MRM tools:
 | Raw untargeted LC-MS feature detection and alignment | `xcms` |
 | General metabolomics peak-matrix preprocessing | `pmp` |
 | Metabolite annotation-table workflows | `MetMashR` |
-| Chromatogram processing, peak integration, automated identification | MRMAnalyzer, MRMkit, MRMQuant |
+| Chromatogram processing, peak integration, automated identification | MRMkit, MRMQuant |
 | Post-acquisition targeted-assay processing, QC and reporting | **MRManalyzeR** |
 
 The design assumes a validated targeted panel of >20 MRM transitions, known
@@ -101,10 +101,9 @@ Worth knowing before you rely on the output.
 
 * **Batch correction equalises batch medians.** It assumes the reference
   samples (`QC`, or biological samples if the design is balanced across
-  batches) are comparable between batches. `correctBatch()` refuses to run
-  without enough reference injections per batch, and warns when the batch
-  variable is confounded with a study factor -- but it cannot detect a design
-  where that confounding is total.
+  batches) are comparable between batches. `correctBatch()` fails without
+  enough reference injections per batch, and warns when the batch variable is
+  confounded with a study factor.
 * **Normalisation and quantification depend on assay design.** MRManalyzeR
   accommodates a range of targeted workflows, whether reporting unadjusted peak
   areas or fully calibrated concentrations. Its built-in normalisation and
@@ -456,15 +455,13 @@ Where an acquisition spans several days or columns, response can shift between
 batches. `correctBatch()` scales each batch so its per-feature median matches
 the grand median across the reference samples. It runs straight after the
 filters, on the instrument signal, and before normalisation, concentration
-adjustment and imputation: the QC medians are then not rescaled by per-sample
-amounts that pooled QCs usually do not have, and they come from what was
-measured. A missing value counts as zero:
-a compound missing from most of a batch's QCs is described by that, not by the
-few injections where it was found. Where more than half are missing the median
-is zero, and a compound that fails like that in any batch is corrected in
-none; the failing batches are printed and kept in `bc_failed_batches`. To
-correct only part of the panel, pass
-`feature_col` -- a `feature_metadata` column of `YES` / `NO`.
+adjustment and imputation. A missing value counts as zero: a compound missing
+from most of a batch's QCs is described as such, thus impacting the median
+calculation, avoiding it being based on few injections where it was found.
+Where more than half of values for a compound are missing, the median is zero,
+and correction is not applied for this compound only. The failing batches are
+printed and kept in `bc_failed_batches`. To correct only part of the panel,
+pass `feature_col` -- a `feature_metadata` column of `YES` / `NO`.
 
 ```{r step-batch}
 batch     <- stats::setNames(de$sample_meta$Chrom_Batch,
@@ -586,9 +583,9 @@ missingness threshold instead of imputing them. For targeted panels a compound
 missing in most samples is usually better dropped than modelled.
 
 Imputation comes last, after batch correction, normalisation and concentration
-adjustment, and it only feeds the exported matrix: in a YAML-driven run the
-reports use the measured values, and their PCAs impute for themselves, unless
-`use_imputed: True` is set.
+adjustment. In a YAML-driven run it fills the exported matrix and the PCAs; the
+tests and plots use the measured values unless `use_imputed: True` is set. With
+`replace_MVs` off, the PCAs impute for themselves.
 
 ```{r step-impute}
 de <- imputeMissing(de, scalar = 0.2, blank_head = "Sample_type",
@@ -596,9 +593,8 @@ de <- imputeMissing(de, scalar = 0.2, blank_head = "Sample_type",
 sum(is.na(de$data))
 ```
 
-Imputation is the one step that invents numbers, so it records what it did in
-`variable_meta`: the ceiling (`impute_max`), how many cells it filled
-(`n_imputed`) and what share of the compound's samples that is
+Imputation is recorded in `variable_meta`: the ceiling (`impute_max`), how many
+cells it filled (`n_imputed`) and what share of the compound's samples that is
 (`frac_imputed`). A compound with a high `frac_imputed` is mostly invented, and
 a difference found in it says more about the fill than about the biology:
 
@@ -625,7 +621,7 @@ out <- processDataset(
   normalize        = "protein_ug",
   adjust_conc      = TRUE,
   starting_vol_col = "starting_vol_uL",
-  replace_MVs      = 0.5,
+  replace_MVs      = 0.2,
   batch_correction = TRUE,
   bc_qc_label      = "QC",
   bc_header        = "Chrom_Batch",
@@ -1018,14 +1014,33 @@ PeakMatrixProcessing:
     sample_IS_col:    sample_IS_vol_uL
     cal_IS_col:       cal_IS_vol_uL
 
-  replace_MVs: 0.5               # False | fill ceiling (x feature min); last
-  impute_method: gaussian        # gaussian (random draws) | constant
+  replace_MVs: 0.2               # False = no imputation. 0.2 = fill below a
+                                 #   ceiling of 0.2 x the compound's minimum
+  impute_method: gaussian        # gaussian = random values between 0 and the
+                                 #   ceiling | constant = the ceiling itself
   impute_seed: 42                # same seed, same fills on every rerun
 ```
 
 `data_quality_report:` and `stats_report:` configure stages 3 and 4 in the same
 declarative way -- which column identifies QCs, which factors to compare, which
 plots to draw. See the bundled file for the fully commented set.
+
+For missing values, each report sets which matrix its tests and plots use, and
+how its PCA fills whatever `replace_MVs` left missing -- everything, when
+`replace_MVs: False`. `data_quality_report:` takes the same keys, with its PCA
+under `qc_pca:`:
+
+```yaml
+stats_report:
+  use_imputed: False             # False = tests and plots on measured values
+  pca:
+    preprocess:
+      feat_na_max:   0.6         # drop compounds and samples missing
+      sample_na_max: 0.6         #   in more than 60%
+      impute:      gaussian      # gaussian | frac_min | min | half_min | none
+      impute_frac: 0.2
+      seed:        42
+```
 
 Outputs are written next to your data: the processed matrix as `.xlsx` and
 `.RDS` (imputed when `replace_MVs` is set, with the measured values as a
