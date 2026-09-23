@@ -150,7 +150,8 @@ project: &general
   # ===================== DATA QUALITY REPORT =====================
   data_quality_report:
     execute: True
-    use_imputed: False                    # True = use the replace_MVs matrix here
+    use_imputed: False                    # True = CVs and plots on the replace_MVs
+                                          # matrix; False = measured values
 
     # -- colours (shared by every plot in this report) --
     colours:
@@ -188,7 +189,7 @@ project: &general
       label:   none                       # none | all | outliers
       label_factor: Sample_ID
       ellipse: none                       # none | group
-      preprocess:
+      preprocess:                         # PCA only
         feat_na_max:   0.6                # drop features >60% missing
         sample_na_max: 0.6                # drop samples >60% missing
         impute:      gaussian             # gaussian | frac_min | min | half_min | none
@@ -270,7 +271,7 @@ project: &general
       loadings:
         enabled:  True
         color_by: Enzymatic_pathway      # feature_metadata column for bar fill
-      preprocess:
+      preprocess:                        # PCA only
         feat_na_max:   0.6               # drop features >60% missing
         sample_na_max: 0.6               # drop samples >60% missing
         impute:      gaussian            # gaussian | frac_min | min | half_min | none

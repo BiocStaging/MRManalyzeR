@@ -109,7 +109,7 @@ stats_report:
     loadings:
       enabled: True
       color_by: Primary                # feature_metadata column for bar fill
-    preprocess:
+    preprocess:                        # PCA only
       feat_na_max:   1                 # 1 = keep all (allow up to 100% NA)
       sample_na_max: 1                 # 1 = keep all
       impute:      gaussian            # gaussian | frac_min | min | half_min | none
