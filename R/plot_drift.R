@@ -19,7 +19,7 @@
 #' @param sample_type_head `sample_meta` column classifying sample type.
 #' @param levels Value(s) of `sample_type_head` to include; `NULL` keeps all.
 #' @param injection_order_head `sample_meta` column holding acquisition order.
-#'   Falls back to row position when absent.
+#'   Must be numeric; falls back to row position when the column is absent.
 #' @param sample_id_head `sample_meta` column used to label points in the
 #'   tooltip; `NULL` uses the row names.
 #' @param value_label Axis / tooltip label for the measured value, e.g. the
@@ -51,10 +51,24 @@ plotDrift = function(de, compound,
   keep = if(is.null(levels) || !sample_type_head %in% colnames(smeta))
     rep(TRUE, nrow(dm)) else smeta[[sample_type_head]] %in% levels
 
+  # A text injection order (a formula returning "_48", say) would become NA
+  # and every point would silently drop out of the plot.
+  ord = which(keep)
+  if(injection_order_head %in% colnames(smeta)){
+    raw = smeta[[injection_order_head]][keep]
+    ord = suppressWarnings(as.numeric(as.character(raw)))
+    bad = is.na(ord) & !is.na(raw)
+    if(any(bad))
+      stop(sprintf("[plotDrift] '%s' must be numeric; found: %s.",
+                   injection_order_head,
+                   paste(sprintf("'%s'", utils::head(
+                           unique(as.character(raw[bad])), 5)),
+                         collapse = ", ")), call. = FALSE)
+  }
+
   df = data.frame(
     value = dm[keep, compound],
-    order = if(injection_order_head %in% colnames(smeta))
-      as.numeric(smeta[[injection_order_head]][keep]) else which(keep),
+    order = ord,
     type  = if(sample_type_head %in% colnames(smeta))
       as.character(smeta[[sample_type_head]][keep]) else "sample",
     id    = if(!is.null(sample_id_head) && sample_id_head %in% colnames(smeta))

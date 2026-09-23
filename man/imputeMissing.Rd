@@ -2,64 +2,89 @@
 % Please edit documentation in R/impute_missing.R
 \name{imputeMissing}
 \alias{imputeMissing}
-\title{Impute missing values with a fraction of the per-feature minimum}
+\title{Impute missing values below each compound's lowest measurement}
 \usage{
 imputeMissing(
   de,
   scalar,
   blank_head = "Sample_type",
   blank_name = "Blank",
-  warn_frac = 0.5
+  warn_frac = 0.5,
+  method = c("gaussian", "constant"),
+  seed = 42,
+  by = NULL
 )
 }
 \arguments{
 \item{de}{A `struct::DatasetExperiment`.}
 
-\item{scalar}{Numeric multiplier applied to the per-feature minimum, e.g.
-`0.5` for half-minimum or `0.2` for a fifth of the minimum.}
+\item{scalar}{Fraction of the per-feature minimum used as the ceiling,
+e.g. `0.2`.}
 
 \item{blank_head}{`sample_meta` column identifying blank injections.}
 
-\item{blank_name}{Value in `blank_head` marking a blank injection.
-Imputation is the one step that invents numbers, so it records what it did:
-`impute_fill` (the value used for each feature), `n_imputed` and
-`frac_imputed` are added to `variable_meta`. A compound whose
-`frac_imputed` is high is not a measured compound - it is mostly a constant
-- and a difference found in it is an artefact of the fill value. Check that
-column before interpreting anything, and consider excluding above
-`warn_frac`.}
+\item{blank_name}{Value in `blank_head` marking a blank injection.}
 
 \item{warn_frac}{Warn about features imputed in more than this fraction of
 the non-blank injections. `NULL` disables the warning.}
+
+\item{method}{`"gaussian"` (default) for random draws below the ceiling, or
+`"constant"` to fill every cell with the ceiling.}
+
+\item{seed}{Random seed for `method = "gaussian"`; `NULL` uses the current
+random stream.}
+
+\item{by}{Optional `sample_meta` column of processing batches, each given
+its own ceiling. `NULL` (default) treats all injections together.}
 }
 \value{
 `de` with `data` imputed in the original row order, and
-  `impute_fill` / `n_imputed` / `frac_imputed` added to `variable_meta`.
+  `impute_max` (or `impute_max_<batch>`), `n_imputed` and `frac_imputed`
+  added to `variable_meta`.
 }
 \description{
-Zeros are treated as missing. For each feature, `NA`s among the non-blank
-injections are replaced with `min(non-NA) * scalar` -- the common
-"half-minimum" style of imputation for non-detects, which places them just
-below the lowest value actually observed. Blank injections (identified from
-`blank_head` in `sample_meta`) are left untouched.
+Zeros are treated as missing. For each feature, the `NA`s among the
+non-blank injections are filled with values below the lowest one actually
+measured, because a non-detect sits under the detection floor rather than
+at zero. The ceiling is `scalar` times that minimum.
 }
 \details{
-This is the only imputation applied to the reported matrix, and it is
-deliberately simple: for a targeted panel a compound that is missing in most
-samples is usually better dropped than modelled. Where the choice matters
-more -- ahead of PCA -- [runPCA()] offers `"none"`, `"min"`, `"half_min"`
-and `"frac_min"`, plus per-feature and per-sample missingness filters that
-discard rather than fill.
+With `method = "gaussian"` (the default) every missing cell gets its own
+random draw from a normal distribution centred at half the ceiling, with a
+standard deviation of a sixth of it, truncated to lie between 0 and the
+ceiling. A single constant would give every non-detect the same value,
+which shrinks the variance of a compound and ties its ranks - both of which
+flatter a statistical test. `method = "constant"` fills every cell with the
+ceiling itself, as earlier versions did. The draws use `seed`, so a rerun
+gives the same values; `seed = NULL` uses the session's random stream.
+
+`by` names a `sample_meta` column of processing batches. Each batch then
+gets its own ceiling from its own minimum, so a batch measured at lower
+response is not filled with another batch's values. Injections with an
+empty `by` value are treated as one batch of their own.
+
+Imputation is the one step that invents numbers, so it records what it did
+in `variable_meta`: `impute_max`, the ceiling (one column per batch,
+`impute_max_<batch>`, when `by` gives more than one); `n_imputed`, how many
+cells were filled; and `frac_imputed`, the share of the compound's
+non-blank injections that were filled. A compound whose `frac_imputed` is
+high is mostly invented, and a difference found in it is an artefact of the
+fill. Check that column before interpreting anything, and consider
+excluding compounds above `warn_frac`.
+
+Blank injections (identified from `blank_head` in `sample_meta`) are left
+untouched and do not count towards the minimum.
 }
 \examples{
 de <- struct::DatasetExperiment(
-  data = data.frame(PGE2 = c(10, 5, NA), PGD2 = c(2, NA, 4),
-                    row.names = c("S1", "S2", "S3")),
-  sample_meta = data.frame(Sample_type = rep("Sample", 3),
-                           row.names = c("S1", "S2", "S3")),
+  data = data.frame(PGE2 = c(10, 5, NA, 8), PGD2 = c(2, NA, 4, NA),
+                    row.names = c("S1", "S2", "S3", "S4")),
+  sample_meta = data.frame(Sample_type = rep("Sample", 4),
+                           row.names = c("S1", "S2", "S3", "S4")),
   variable_meta = data.frame(Compound = c("PGE2", "PGD2"),
                              row.names = c("PGE2", "PGD2")))
 imputeMissing(de, scalar = 0.5)$data
+imputeMissing(de, scalar = 0.5, method = "constant")$data
 }
 \seealso{
 Other peak-matrix processing:

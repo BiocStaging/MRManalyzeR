@@ -26,7 +26,7 @@ plotDrift(
 \item{levels}{Value(s) of `sample_type_head` to include; `NULL` keeps all.}
 
 \item{injection_order_head}{`sample_meta` column holding acquisition order.
-Falls back to row position when absent.}
+Must be numeric; falls back to row position when the column is absent.}
 
 \item{sample_id_head}{`sample_meta` column used to label points in the
 tooltip; `NULL` uses the row names.}

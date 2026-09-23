@@ -123,9 +123,9 @@ test_that("our fractions agree with pmp::filter_peaks_by_fraction", {
     theirs <- suppressWarnings(suppressMessages(
       pmp::filter_peaks_by_fraction(peak_tbl, min_frac = mf,
                                     classes = classes, method = "within")))
-    kept_pmp <- rownames(
-      if (methods::is(theirs, "SummarizedExperiment"))
-        SummarizedExperiment::assay(theirs) else theirs)
+    # rownames() works on a matrix and on a SummarizedExperiment alike, so
+    # the test does not need SummarizedExperiment declared.
+    kept_pmp <- rownames(theirs)
     expect_setequal(colnames(ours$data), kept_pmp)
   }
 })

@@ -10,7 +10,8 @@ correctBatch(
   factor_name = "Sample_type",
   batch_head = "Chrom_Batch",
   check_factor = NULL,
-  min_ref = 2
+  min_ref = 2,
+  feature_col = NULL
 )
 }
 \arguments{
@@ -20,7 +21,8 @@ correctBatch(
 
 \item{factor_name}{`sample_meta` column holding `qc_label`.}
 
-\item{batch_head}{`sample_meta` column identifying the batch.}
+\item{batch_head}{`sample_meta` column identifying the batch. Every
+injection needs a value; an empty one stops with an error naming it.}
 
 \item{check_factor}{Optional `sample_meta` column holding the study factor.
 When given, the reference samples are cross-tabulated against it and a
@@ -30,15 +32,23 @@ differences. `NULL` skips the check.}
 
 \item{min_ref}{Minimum reference samples required in each batch. Below this
 the batch median is not estimable and the correction would be noise.}
+
+\item{feature_col}{`NULL` (default) to correct every compound, or the name
+of a `variable_meta` column of `YES` / `NO` selecting the compounds to
+correct.}
 }
 \value{
-The batch-corrected `struct::DatasetExperiment`.
+The batch-corrected `struct::DatasetExperiment`, with two columns
+  added to `variable_meta`: `batch_corrected`, `TRUE` where the compound was
+  corrected, and `bc_failed_batches`, which for a selected compound that
+  could not be corrected names the batches whose reference median was zero
+  or negative - `"grand median"` when the median across all reference
+  injections was - and is empty otherwise.
 }
 \description{
-Convenience wrapper that builds the median-ratio batch-correction model and
-applies it, returning the corrected `DatasetExperiment`. Each batch is scaled
-so its per-feature median matches the grand median across the reference
-(`qc_label`) samples.
+Scales each batch so its per-feature median matches the grand median across
+the reference (`qc_label`) samples, and returns the corrected
+`DatasetExperiment`.
 }
 \details{
 The reference has to be material whose true value does not differ between
@@ -54,17 +64,49 @@ confounded with the study factor - all treated animals run on day 2, say -
 the between-batch difference is partly the effect you are looking for, and
 correcting removes it silently. Pass `check_factor` to have that assumption
 tested rather than assumed.
+
+Medians count a missing value as zero, so the median of
+`c(NA, NA, 1, 2, 3)` is 1, not 2. A compound missing from most of a batch's
+reference injections is at or below detection there, and a median of only
+the injections where it was found would describe that batch by its highest
+values. When more than half are missing the median is zero and the ratio is
+undefined. A compound whose median is zero or negative in any batch, or
+across all the reference injections, is corrected in no batch at all:
+scaling only some of its batches would leave them on different footings,
+which is the problem correction exists to remove. Its values are left as
+measured - never turned into `NA` - the failing batches are recorded in
+`bc_failed_batches`, and each such compound is listed on screen. Negative
+medians only arise from signed data such as blank-subtracted values. Missing
+values themselves are not filled in: impute afterwards, if at all, with
+[imputeMissing()].
+
+Every injection needs a `batch_head` value. One with an empty value - a
+blank run outside the sequence, say - cannot be scaled against anything,
+so the function stops and names it: give it a batch, or exclude it from
+processing.
+
+`feature_col` restricts the correction to part of the panel. It names a
+`variable_meta` column holding `YES` or `NO` per compound; case and
+surrounding spaces are ignored, and `TRUE` / `FALSE` work too. A `NO`
+compound is left as measured. A blank cell is treated as `NO`, with a
+warning, because leaving a value alone is the choice that can be undone.
 }
 \examples{
 m  <- data.frame(A = c(10, 12, 20, 24), B = c(5, 6, 10, 12),
                  row.names = c("S1", "S2", "S3", "S4"))
-fm <- data.frame(Compound = c("A", "B"), row.names = c("A", "B"))
+fm <- data.frame(Compound = c("A", "B"), Correct = c("YES", "NO"),
+                 row.names = c("A", "B"))
 sm <- data.frame(Sample_type = "Sample",
                  Chrom_Batch = c("b1", "b1", "b2", "b2"),
                  row.names = c("S1", "S2", "S3", "S4"))
 de <- struct::DatasetExperiment(data = m, sample_meta = sm, variable_meta = fm)
 correctBatch(de, qc_label = "Sample", factor_name = "Sample_type",
               batch_head = "Chrom_Batch")
+
+# Only the compounds marked YES
+out <- correctBatch(de, qc_label = "Sample", factor_name = "Sample_type",
+                    batch_head = "Chrom_Batch", feature_col = "Correct")
+out$data
 }
 \seealso{
 Other peak-matrix processing:

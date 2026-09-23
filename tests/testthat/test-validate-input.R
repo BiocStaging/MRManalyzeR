@@ -43,3 +43,21 @@ test_that("compound and processing-name columns are still required", {
   v  = validateInput(fm, sm_ok())
   expect_match(v$errors, "missing required column", all = FALSE)
 })
+
+test_that("an included injection's order has to be a number", {
+  sm <- sm_ok()
+  sm$Injection_order <- c("_48", "2")
+  v <- validateInput(fm_ok(), sm, injection_order_head = "Injection_order")
+  expect_match(v$errors, "non-numeric Injection_order", all = FALSE)
+  expect_match(v$errors, "'_48'", all = FALSE)
+
+  sm$Injection_order <- c(1, 2)
+  v <- validateInput(fm_ok(), sm, injection_order_head = "Injection_order")
+  expect_length(v$errors, 0)
+
+  # Excluded injections are not checked.
+  sm$Injection_order <- c("x", "2")
+  sm$Include <- c("NO", "YES")
+  v <- validateInput(fm_ok(), sm, injection_order_head = "Injection_order")
+  expect_length(v$errors, 0)
+})

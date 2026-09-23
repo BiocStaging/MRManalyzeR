@@ -88,8 +88,9 @@ qc_pca_ellipse = report_pars$qc_pca$ellipse         %||% "none"
 
 # Preprocessing for QC PCA (with sensible defaults)
 qc_pca_pp = report_pars$qc_pca$preprocess %||% list()
-qc_pca_impute        = qc_pca_pp$impute        %||% "min"
+qc_pca_impute        = qc_pca_pp$impute        %||% "gaussian"
 qc_pca_impute_frac   = as.numeric(qc_pca_pp$impute_frac %||% 0.5)
+qc_pca_seed          = if("seed" %in% names(qc_pca_pp)) qc_pca_pp$seed else 42
 qc_pca_transform     = qc_pca_pp$transform     %||% "log2"
 qc_pca_center        = isTRUE(qc_pca_pp$center %||% TRUE)
 qc_pca_scale         = isTRUE(qc_pca_pp$scale  %||% TRUE)
@@ -154,6 +155,8 @@ interactive_plots = isTRUE(report_pars$interactive_plots %||% TRUE) &&
 Inspect data quality for acquired compounds. Check QCs, drift over injection
 order, and confounding factors (batch, sample type) via PCA.
 
+`r .n_imp = .n_imputed_total(combined_datamatrices); .is_imp = if(exists("values_imputed")) isTRUE(values_imputed) else .n_imp > 0; if(.is_imp) sprintf("Values: an **imputed** matrix - %s%s.", if(.n_imp > 0) sprintf("%d value(s) were filled in", .n_imp) else "how many values were filled in was not recorded", if(isTRUE(report_pars$use_imputed)) " (\x60use_imputed: True\x60)" else ", because the stored dataset predates the measured copy") else "Values: as **measured**, gaps included - nothing in this report is imputed except inside the QC PCA."`
+
 # 2. Data import and summary
 
 ```{r import}
@@ -176,14 +179,18 @@ DT::datatable(
 # Per-feature CV in QC vs samples (when QC samples present)
 # CV_QC over QC rows; CV_sample over biological-sample rows only (NOT
 # "everything non-QC", which would fold in blanks / calibration curves).
-# addCVMetrics() is idempotent, so recomputing here is safe even though
-# runMRManalyzeR() has already applied it.
+# runMRManalyzeR() computes the CVs on the measured values and stores them;
+# use those, so the table matches the workbook whichever matrix this report
+# was given. Recompute only for a dataset that has none.
 qc_idx = which(metadata[[sample_type_head]] %in% qc_label)
 
-.cv_de = addCVMetrics(combined_datamatrices,
-                        sample_type_head = sample_type_head,
-                        qc_label         = qc_label,
-                        sample_labels    = sample_labels)
+.cv_cols = c("CV_QC", "CV_sample", "CV_sample_vs_QC")
+.cv_de = if(all(.cv_cols %in% colnames(as.data.frame(combined_datamatrices$variable_meta))))
+  combined_datamatrices else
+  addCVMetrics(combined_datamatrices,
+               sample_type_head = sample_type_head,
+               qc_label         = qc_label,
+               sample_labels    = sample_labels)
 
 cv_table = as.data.frame(.cv_de$variable_meta)[
   , c("Compound", "CV_QC", "CV_sample", "CV_sample_vs_QC"), drop = FALSE]
@@ -330,6 +337,14 @@ function showQQPlot_%s(id){
 # Subset to requested sample types
 keep = metadata[[qc_pca_head]] %in% qc_pca_levels
 X = as.matrix(data_matrix[keep, , drop = FALSE])
+# Values from the exported matrix: what replace_MVs imputed, so runPCA()
+# fills only what is still missing.
+.P = get0("pca_datamatrices")
+if(!is.null(.P)){
+  .P = as.matrix(as.data.frame(.P$data))
+  if(all(rownames(X) %in% rownames(.P)) && all(colnames(X) %in% colnames(.P)))
+    X = .P[rownames(X), colnames(X), drop = FALSE]
+}
 smeta_pca = metadata[keep, , drop = FALSE]
 
 # Ensure shared rownames on X and smeta_pca so we can re-align after the
@@ -345,6 +360,7 @@ rownames(smeta_pca) = .qc_rn
 res_pca = runPCA(X,
                            impute        = qc_pca_impute,
                            impute_frac   = qc_pca_impute_frac,
+                           seed          = qc_pca_seed,
                            transform     = qc_pca_transform,
                            center        = qc_pca_center,
                            scale         = qc_pca_scale,

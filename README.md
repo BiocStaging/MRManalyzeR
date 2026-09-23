@@ -144,10 +144,10 @@ library(MRManalyzeR)
 
 de <- assembleDataset(readTargetLynx("study.xlsx", datatype = "Area"),
                        feature_meta, sample_meta)
-de <- filterBlanks(de)
+de <- filterBlanks(de, blank_filter = 3)
+de <- correctBatch(de, batch_head = "Chrom_Batch")
 de <- normaliseMatrix(de, column = "protein_mg")
 de <- imputeMissing(de, scalar = 0.2)
-de <- correctBatch(de, batch_head = "Chrom_Batch")
 
 qc  <- addCVMetrics(de)
 pca <- runPCA(de, transform = "log2", scale = TRUE)
@@ -196,7 +196,7 @@ Then edit `config.yml`. The key blocks are:
 | Block | Purpose |
 |---|---|
 | `paths:` | input xlsx location, output directory, output filename stem |
-| `PeakMatrixProcessing:` | data source and datatype, signal / blank / MV filters, normalisation, IS and volume adjustment, batch correction |
+| `PeakMatrixProcessing:` | data source and datatype, signal / blank / detection filters, batch correction, normalisation, IS and volume adjustment, missing-value imputation |
 | `data_quality_report:` | per-compound measurement vs injection order, Q-Q normality, QC PCA |
 | `stats_report:` | configured group comparisons and multigroup tests, boxplots, correlations, linear models, PCA, volcano, ion ratios, heatmaps |
 
@@ -216,13 +216,18 @@ res <- MRManalyzeR::runMRManalyzeR("config.yml")
 This writes, into `paths.result_dir`:
 
 * `<fn>_<datatype><suffix>.xlsx` — processed matrix, feature metadata and
-  sample metadata
+  sample metadata; with `replace_MVs` set the matrix is imputed and a
+  `matrix_measured` sheet holds the values as measured
 * `<fn>_<datatype><suffix>_stats.xlsx` — a `key` sheet defining every column,
   then `stats`, `correlations`, `linear_models`, `ion_ratios` and `summary`
 * `<fn>_<datatype><suffix>_data_quality_report.html`
 * `<fn>_<datatype><suffix>_stats_report.html`
 * `<fn>_<datatype><suffix>.RDS` and `.txt` — the dataset and the resolved
-  parameters
+  parameters, plus `_measured.RDS` when `replace_MVs` is set
+
+The reports and statistics use the measured values; set `use_imputed: True`
+in a report's block to give it the imputed matrix instead. The PCAs use the
+imputed values when `replace_MVs` is set, and impute for themselves otherwise.
 
 The bundled config sets `suffix: _`, which is why the shipped examples read
 `example_data_ng_mL__stats.xlsx` with two underscores. Set `suffix: ""` for
@@ -230,7 +235,8 @@ single ones.
 
 To re-render reports from an already-processed RDS (skipping the xlsx
 ingest), set `PeakMatrixProcessing.execute: False` and re-run — `fn`,
-`datatype` and `suffix` must then match the stored file.
+`datatype` and `suffix` must then match the stored file. The reports read the
+`_measured.RDS` beside it when there is one.
 
 ---
 

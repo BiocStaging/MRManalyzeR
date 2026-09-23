@@ -12,7 +12,9 @@ validateInput(
   compound_col = "Compound",
   processing_name_col = "Processing_name",
   report_col = "Report",
-  include_col = "Include"
+  include_col = "Include",
+  include_value = "YES",
+  injection_order_head = NULL
 )
 }
 \arguments{
@@ -25,6 +27,15 @@ validateInput(
 when absent.}
 
 \item{name_col, compound_col, processing_name_col, report_col, include_col}{Column names, matching the arguments of [processDataset()].}
+
+\item{include_value}{Value of `include_col` marking injections to process.}
+
+\item{injection_order_head}{`sample_meta` column holding acquisition order,
+or `NULL` (default) to skip the check. When given, every included
+injection must have a numeric value there: drift plots and the QC-PCA
+colour scale read it as a number, and a text value (a formula returning
+`"_48"`, say) would otherwise leave them empty without an error. An absent
+column is only a warning, since the plots then fall back to row order.}
 }
 \value{
 An `mrm_validation` object with `errors`, `warnings` and a `summary`

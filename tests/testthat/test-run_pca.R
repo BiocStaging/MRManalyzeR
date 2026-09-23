@@ -92,3 +92,26 @@ test_that("zero-variance features are dropped after transform", {
   expect_gte(res$dropped_zero_var, 1)
   expect_false("F4" %in% colnames(res$X_clean))
 })
+
+test_that("gaussian imputation fills below the minimum, reproducibly", {
+  M <- .synth_matrix()
+  M[1:3, 2] <- NA_real_
+  run <- function() runPCA(M, impute = "gaussian", impute_frac = 0.2,
+                           transform = "none", center = FALSE, scale = FALSE)
+  r1 <- run()
+  r2 <- run()
+  fills   <- r1$X_clean[1:3, 2]
+  ceiling <- 0.2 * min(M[, 2], na.rm = TRUE)
+  expect_true(all(fills > 0 & fills < ceiling))
+  expect_identical(r1$X_clean, r2$X_clean)
+})
+
+test_that("gaussian imputation treats zeros as missing", {
+  M <- .synth_matrix()
+  M[1, 2] <- 0
+  M[2, 2] <- NA_real_
+  r <- runPCA(M, impute = "gaussian", impute_frac = 0.2, transform = "none",
+              center = FALSE, scale = FALSE)
+  fills <- r$X_clean[1:2, 2]
+  expect_true(all(fills > 0))   # a zero minimum would have filled with 0
+})

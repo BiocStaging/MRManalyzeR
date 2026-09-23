@@ -1,6 +1,6 @@
 project: &general
   name: example-project
-  researcher: Matt Smith
+  researcher: Matthew J. Smith
 
   # See inst/extdata/example_combine_config.yml for the merge-multiple-
   # acquisitions workflow (runMRManalyzeRCombine()).
@@ -70,12 +70,12 @@ project: &general
     comment_col: Comment                  # exclusion-reason column (optional)
 
     # 4. Blank filter
-    blank_filter: False                   # nx > blank median | False
+    blank_filter: False                   # nx > blank mean | False
     blank_head: 'Sample_type'             # column identifying blanks
     blank_name: 'Blank'                   # value marking blanks
     # 4b. Feature detection filter  (runs after the blank filter, before
-    #     normalisation and imputation; applied once to the whole dataset,
-    #     never per batch)
+    #     batch correction, normalisation and imputation; applied once to
+    #     the whole dataset, never per batch)
     filter_features:
       enabled: False
       min_frac: 0.5              # keep a feature detected in >= this fraction
@@ -102,10 +102,27 @@ project: &general
       sample_labels: ["Sample"]  #   blank over the threshold is reported, kept
 
 
-    # 5. Normalisation
+    # 5. Batch correction  (straight after the filters, on the instrument
+    #    signal; before normalisation, adjustment and imputation. A missing
+    #    value counts as zero in the batch medians)
+    batch_correction: False               # False | True (every compound) | name of a
+                                          # feature_metadata column of YES / NO
+                                          # choosing which compounds to correct
+    bc_qc_label: "Sample"                 # QC | Sample - QCs are safest; Sample assumes
+                                          # the design is balanced across batches
+    bc_check_factor: ~                   # study factor; warns if batch is confounded with it
+    bc_factor_name: "Sample_type"         # column holding bc_qc_label
+    bc_header: "Chrom_Batch"              # batch-label column
+    processing_batch: ~                  # partitions the blank filter and imputation.
+                                         # ~ = follow bc_header; if that column does not exist
+                                         # the run warns and treats every sample as one batch.
+                                         # Naming a column that does not exist is an error.
+                                         # False = one batch, no warning (single-batch studies)
+
+    # 6. Normalisation
     normalize: False                      # False | sample_metadata column to divide by
 
-    # 6. Concentration adjustment  (conc * cal_vol/sample_vol * sample_IS/cal_IS, then * sample_vol/starting_vol)
+    # 7. Concentration adjustment  (conc * cal_vol/sample_vol * sample_IS/cal_IS, then * sample_vol/starting_vol)
     adjust_conc:
       enabled: False                      # on/off
       starting_vol_col: False             # False to skip this step | column of pre-dry-down volume
@@ -114,21 +131,17 @@ project: &general
       sample_IS_col:    "sample_IS_vol_uL"
       cal_IS_col:       "cal_IS_vol_uL"
 
-    # 7. Missing-value imputation
-    replace_MVs: False                    # False | scalar (e.g. 0.2 x per-feature min)
-
-    # 8. Batch correction
-    batch_correction: False               # equalise batch medians
-    bc_qc_label: "Sample"                 # QC | Sample - QCs are safest; Sample assumes
-                                          # the design is balanced across batches
-    bc_check_factor: ~                   # study factor; warns if batch is confounded with it
-    bc_factor_name: "Sample_type"         # column holding bc_qc_label
-    bc_header: "Chrom_Batch"              # batch-label column
-    processing_batch: ~                  # partitions blank filter / normalise / adjust / impute.
-                                         # ~ = follow bc_header; if that column does not exist
-                                         # the run warns and treats every sample as one batch.
-                                         # Naming a column that does not exist is an error.
-                                         # False = one batch, no warning (single-batch studies)
+    # 8. Missing-value imputation  (last)
+    replace_MVs: 0.2                      # False | fraction of the per-feature minimum
+                                          # (e.g. 0.2) used as the fill ceiling. Set, it
+                                          # imputes the output matrix (xlsx 'matrix', RDS)
+                                          # and adds 'matrix_measured'; the reports still
+                                          # use measured values unless use_imputed: True.
+                                          # The PCAs use these values too.
+                                          # False: nothing imputed except inside PCA.
+    impute_method: gaussian               # gaussian = random draws in (0, ceiling), normal
+                                          # centred mid-range | constant = the ceiling
+    impute_seed: 42                       # same seed, same fills on every rerun
 
     # 9. Output
     scale_fac: 1                          # multiply outputs (e.g. 1000: ng/mL -> pg/mL)
@@ -137,6 +150,7 @@ project: &general
   # ===================== DATA QUALITY REPORT =====================
   data_quality_report:
     execute: True
+    use_imputed: False                    # True = use the replace_MVs matrix here
 
     # -- colours (shared by every plot in this report) --
     colours:
@@ -177,7 +191,9 @@ project: &general
       preprocess:
         feat_na_max:   0.6                # drop features >60% missing
         sample_na_max: 0.6                # drop samples >60% missing
-        impute:      frac_min             # none | min | half_min | frac_min
+        impute:      gaussian             # gaussian | frac_min | min | half_min | none
+                                          # fills what replace_MVs left missing
+        seed:        42                   # random draws for gaussian
         impute_frac: 0.2
         transform:   log2
         center:      True
@@ -186,6 +202,9 @@ project: &general
   # ========================= STATS REPORT ========================
   stats_report:
     execute: True
+    use_imputed: False                    # True = tests and plots on the replace_MVs
+                                          # matrix; False = measured values. The PCA
+                                          # uses the replace_MVs values either way.
 
     # -- colours (shared by every plot in this report) --
     colours:
@@ -254,7 +273,9 @@ project: &general
       preprocess:
         feat_na_max:   0.6               # drop features >60% missing
         sample_na_max: 0.6               # drop samples >60% missing
-        impute:      frac_min            # none | min | half_min | frac_min
+        impute:      gaussian            # gaussian | frac_min | min | half_min | none
+                                         # fills what replace_MVs left missing
+        seed:        42                  # random draws for gaussian
         impute_frac: 0.2
         transform:   log2                # none | log2 | sqrt
         center:      True

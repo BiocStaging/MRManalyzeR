@@ -65,6 +65,13 @@ print.mrm_validation = function(x, ...){
 #'   when absent.
 #' @param name_col,compound_col,processing_name_col,report_col,include_col
 #'   Column names, matching the arguments of [processDataset()].
+#' @param include_value Value of `include_col` marking injections to process.
+#' @param injection_order_head `sample_meta` column holding acquisition order,
+#'   or `NULL` (default) to skip the check. When given, every included
+#'   injection must have a numeric value there: drift plots and the QC-PCA
+#'   colour scale read it as a number, and a text value (a formula returning
+#'   `"_48"`, say) would otherwise leave them empty without an error. An absent
+#'   column is only a warning, since the plots then fall back to row order.
 #' @return An `mrm_validation` object with `errors`, `warnings` and a `summary`
 #'   data frame of every check.
 #' @examples
@@ -80,7 +87,9 @@ validateInput = function(feature_meta, sample_meta, data = NULL,
                           compound_col        = "Compound",
                           processing_name_col = "Processing_name",
                           report_col          = "Report",
-                          include_col         = "Include"){
+                          include_col         = "Include",
+                          include_value       = "YES",
+                          injection_order_head = NULL){
 
   chk = .chk_new()
   fm  = as.data.frame(feature_meta)
@@ -144,6 +153,28 @@ validateInput = function(feature_meta, sample_meta, data = NULL,
     }
   }
 
+  # --- injection order ------------------------------------------------------
+  if(ok_s && !is.null(injection_order_head)){
+    if(!injection_order_head %in% colnames(sm)){
+      .chk_add(chk, "injection order numeric", "warning", sprintf(
+        "sample_metadata has no '%s' column; drift plots will use row order.",
+        injection_order_head))
+    } else {
+      incl = which(as.character(sm[[include_col]]) == include_value)
+      raw  = sm[[injection_order_head]][incl]
+      txt  = trimws(as.character(raw))
+      bad  = is.na(raw) | !nzchar(txt) |
+             is.na(suppressWarnings(as.numeric(txt)))
+      if(any(bad))
+        .chk_add(chk, "injection order numeric", "error", sprintf(
+          "%d included injection(s) have a missing or non-numeric %s, e.g. %s. Injection order must be a number.",
+          sum(bad), injection_order_head,
+          paste(sprintf("'%s'", utils::head(unique(txt[bad]), 5)),
+                collapse = ", ")))
+      else .chk_add(chk, "injection order numeric", "ok")
+    }
+  }
+
   # --- data / metadata agreement -------------------------------------------
   if(!is.null(data) && ok_s){
     dm  = as.data.frame(data)
@@ -156,12 +187,12 @@ validateInput = function(feature_meta, sample_meta, data = NULL,
         length(orphan), paste(utils::head(orphan, 5), collapse = ", ")))
     else .chk_add(chk, "samples in data have metadata", "ok")
 
-    incl = ids[as.character(sm[[include_col]]) == "YES"]
+    incl = ids[as.character(sm[[include_col]]) == include_value]
     absent = setdiff(incl, rownames(dm))
     if(length(absent))
       .chk_add(chk, "included samples are in the data", "warning", sprintf(
-        "%d sample(s) marked %s = YES have no rows in the data: %s.",
-        length(absent), include_col,
+        "%d sample(s) marked %s = %s have no rows in the data: %s.",
+        length(absent), include_col, include_value,
         paste(utils::head(absent, 5), collapse = ", ")))
     else .chk_add(chk, "included samples are in the data", "ok")
 
@@ -217,7 +248,8 @@ validateConfig = function(config){
     if(sum(on) != 1)
       .chk_add(chk, "one data source enabled", "error", sprintf(
         "%d data sources enabled (%s); exactly one must be.",
-        sum(on), paste(names(on), collapse = ", ")))
+        sum(on), if(any(on)) paste(names(on)[on], collapse = ", ")
+                 else "none"))
     else .chk_add(chk, "one data source enabled", "ok")
 
     if(isTRUE(pmp$adjust_conc$enabled)){
@@ -233,7 +265,10 @@ validateConfig = function(config){
   }
 
   st = prj$stats_report %||% prj$MVA_report
-  if(!is.null(st)){
+  # Only a report that will run, which means execute: True - the same
+  # condition runMRManalyzeR() renders it under. An invalid method in a report
+  # that is switched off must not stop the processing run.
+  if(!is.null(st) && isTRUE(st$execute)){
     for(e in .section_entries(st$comparisons, "comparisons")){
       nm = e$name %||% "<unnamed>"
       lv = length(e$compare$levels %||% character(0))
@@ -293,6 +328,9 @@ validateDesign = function(de, config = NULL,
   chk   = .chk_new()
   smeta = as.data.frame(de$sample_meta)
   dm    = as.data.frame(de$data)
+  # The config may name the batch heading as written in the workbook
+  # (Chrom-Batch); the dataset stores it as Chrom.Batch.
+  batch_head = .resolve_meta_col(batch_head, smeta) %||% batch_head
 
   if(!sample_type_head %in% colnames(smeta)){
     .chk_add(chk, "sample-type column", "error", sprintf(
@@ -319,7 +357,10 @@ validateDesign = function(de, config = NULL,
 
     if(any(st %in% qc_label)){
       per = table(batch[st %in% qc_label])
-      thin = setdiff(unique(batch), names(per)[per >= 2])
+      # An injection with no batch label sits batch correction out, so it is
+      # not a batch that needs QCs.
+      labelled = batch[!is.na(batch) & nzchar(trimws(batch))]
+      thin = setdiff(unique(labelled), names(per)[per >= 2])
       if(length(thin))
         .chk_add(chk, "QCs in every batch", "warning", sprintf(
           "batch(es) %s have fewer than 2 QC injections, so QC-referenced batch correction is not available for them.",
@@ -355,7 +396,12 @@ validateDesign = function(de, config = NULL,
       }
     }
 
-    for(e in .section_entries(sp$comparisons, "comparisons")){
+    # Only the comparisons of a stats report that will run: anything else
+    # never tests them, so warning about their levels is noise.
+    comps = list()
+    if(isTRUE(sp$execute))
+      comps = .section_entries(sp$comparisons, "comparisons")
+    for(e in comps){
       nm  = e$name %||% "<unnamed>"
       fct = e$compare$factor
       lv  = e$compare$levels

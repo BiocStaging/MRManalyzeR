@@ -66,8 +66,9 @@ pca_ellipse_conf = as.numeric(report_pars$pca$ellipse_confidence %||% 0.95)
 
 # PCA preprocessing (with sensible defaults)
 pca_pp = report_pars$pca$preprocess %||% list()
-pca_impute        = pca_pp$impute      %||% "min"
+pca_impute        = pca_pp$impute      %||% "gaussian"
 pca_impute_frac   = as.numeric(pca_pp$impute_frac %||% 0.5)
+pca_seed          = if("seed" %in% names(pca_pp)) pca_pp$seed else 42
 pca_transform     = pca_pp$transform   %||% "log2"
 pca_center        = isTRUE(pca_pp$center %||% TRUE)
 pca_scale         = isTRUE(pca_pp$scale  %||% TRUE)
@@ -349,14 +350,16 @@ heatmap) inspection per comparison.
 
 **Missing-value policy** (which sections impute and which don't):
 
+`r .n_imp = .n_imputed_total(combined_datamatrices); .is_imp = if(exists("values_imputed")) isTRUE(values_imputed) else .n_imp > 0; if(.is_imp) sprintf("This report uses an **imputed** matrix - %s - so the sections below that say *no imputation* include filled-in values%s.", if(.n_imp > 0) sprintf("%d value(s) in it were filled in (\x60n_imputed\x60 in the workbook)", .n_imp) else "how many values were filled in was not recorded", if(isTRUE(report_pars$use_imputed)) " (\x60use_imputed: True\x60)" else ": its input was imputed, e.g. a combine input or a dataset stored before measured values were kept") else "This report uses the values as **measured**, gaps included; only the PCA fills gaps - see its row in the table below."`
+
 | Section | NA handling |
 |---|---|
 | Comparisons (t-test / Wilcoxon / ANOVA / Kruskal / Tukey) | **No imputation** — raw values used; NAs dropped per test by `t.test()` / `wilcox.test()` / `aov()`. |
 | Boxplots (per-compound + by-factor) | **No imputation** — raw values plotted; NAs simply absent from the boxes/jitter. |
-| Correlations | **No imputation** — `pairwise.complete.obs` (each pair uses its own complete cases). |
+| Correlations | **No imputation** — `pairwise.complete.obs` (each pair uses its own complete cases); a pair with fewer than 3 shared samples is left blank. |
 | Linear models | `lm()` drops rows with NA in the feature or any predictor (per feature). |
-| PCA (global + per-comparison) | Imputed per `pca.preprocess.impute` (default in this config: `r pca_impute``r if(pca_impute=="frac_min") sprintf(" with frac=%g", pca_impute_frac) else ""`), then transform → centre → scale. |
-| Heatmap | After `r heatmap_transform` transform and per-feature z-scoring, residual NAs are set to 0 (= per-feature mean in z-units), then capped at ±2.5. |
+| PCA (global + per-comparison) | `r if(isTRUE(get0("pca_imputed"))) "The values imputed in pre-processing (\x60replace_MVs\x60), as in the xlsx matrix" else sprintf("Imputed per \x60pca.preprocess.impute\x60 (in this config: %s%s)", pca_impute, if(pca_impute %in% c("frac_min", "gaussian")) sprintf(" with frac=%g", pca_impute_frac) else "")`, then transform → centre → scale. |
+| Heatmap | After `r heatmap_transform` transform and per-feature z-scoring, values are capped at ±2.5. Missing cells are drawn grey; only for ordering and clustering do they count as the per-feature mean. |
 | Volcano | Inherits the comparisons table, so no imputation in the underlying p-values; rows missing log2FC or p are dropped from the plot. |
 
 # 2. Data import
@@ -381,6 +384,37 @@ if(!is.null(bio_filter_head) && bio_filter_head %in% colnames(metadata)){
   bio_de     = importData
   bio_meta   = metadata
   bio_matrix = data_matrix
+}
+
+# Heatmap captions name the feature grouping only when it was applied; a
+# configured column the data does not have is said so rather than claimed.
+.gf_caption = function(col){
+  res = .resolve_meta_col(col, as.data.frame(bio_de$variable_meta))
+  if(!is.null(res)) sprintf(", features grouped by \x60%s\x60", res)
+  else if(!is.null(col))
+    sprintf(" (\x60%s\x60 is not a feature_metadata column, so features are not grouped)", col)
+  else ""
+}
+
+# Match configured feature columns to their stored names once, so a heading
+# renamed on import (S-group stored as S.group) works in every heatmap
+# section - several of them compare names exactly. A name that does not
+# resolve is kept as written, so the sections can say it is missing.
+.vm_bio    = as.data.frame(bio_de$variable_meta)
+.as_stored = function(col) .resolve_meta_col(col, .vm_bio) %||% col
+heatmap_group_features_by             = .as_stored(heatmap_group_features_by)
+heatmap_general_cfg$group_features_by = .as_stored(heatmap_general_cfg$group_features_by)
+heatmap_topchg_cfg$group_features_by  = .as_stored(heatmap_topchg_cfg$group_features_by)
+heatmap_split_cfg$group_features_by   = .as_stored(heatmap_split_cfg$group_features_by)
+heatmap_subclass_col                  = .as_stored(heatmap_subclass_col)
+
+# Top-changing caption: per class only when the class column exists.
+.tc_caption = function(col){
+  if(!is.null(col) && col %in% colnames(.vm_bio))
+    sprintf("Top %d features per \x60%s\x60 class.", heatmap_topchg_n, col)
+  else if(!is.null(col))
+    sprintf("Top %d features overall (\x60%s\x60 is not a feature_metadata column, so features are not grouped).", heatmap_topchg_n, col)
+  else sprintf("Top %d features overall.", heatmap_topchg_n)
 }
 
 # Fail loud here rather than let downstream sections silently degrade:
@@ -726,7 +760,7 @@ tab is a **global** PCA across the biological subset, coloured by
 |---|---|---|
 | Feature filter | `feat_na_max` | `r if(pca_feat_na_max < 1) sprintf("drop features with > %g%% NA", pca_feat_na_max*100) else "none (only all-NA features removed)"` |
 | Sample filter | `sample_na_max` | `r if(pca_sample_na_max < 1) sprintf("drop samples with > %g%% NA", pca_sample_na_max*100) else "none"` |
-| Imputation | `impute` | `r pca_impute``r if(pca_impute=="frac_min") sprintf(" (frac = %g)", pca_impute_frac)` |
+| Imputation | `impute` | `r pca_impute``r if(pca_impute %in% c("frac_min", "gaussian")) sprintf(" (frac = %g)", pca_impute_frac)` |
 | Transform | `transform` | `r pca_transform` |
 | Centre | `center` | `r pca_center` |
 | Scale | `scale` | `r pca_scale` |
@@ -833,6 +867,14 @@ tab is a **global** PCA across the biological subset, coloured by
 # when sample_na_max < 1 drops any rows.
 .pca_run_one = function(de){
   M  = as.matrix(de$data)
+  # Same samples and compounds, values from the exported matrix: what
+  # replace_MVs imputed, so runPCA() fills only what is still missing.
+  P = get0("pca_datamatrices")
+  if(!is.null(P)){
+    P = as.matrix(as.data.frame(P$data))
+    if(all(rownames(M) %in% rownames(P)) && all(colnames(M) %in% colnames(P)))
+      M = P[rownames(M), colnames(M), drop = FALSE]
+  }
   sm = de$sample_meta
   # Anchor rownames so we can subset sm after the pipeline drops rows.
   rn = if(!is.null(rownames(M)) && !anyDuplicated(rownames(M))) rownames(M)
@@ -843,6 +885,7 @@ tab is a **global** PCA across the biological subset, coloured by
   res = runPCA(M,
                          impute        = pca_impute,
                          impute_frac   = pca_impute_frac,
+                         seed          = pca_seed,
                          transform     = pca_transform,
                          center        = pca_center,
                          scale         = pca_scale,
@@ -935,9 +978,12 @@ for(nm in names(.pca_runs)){
   if(isTRUE(r$insufficient) || is.null(r$res_pca$pr)){
     cat("_No loadings available._\n\n"); next
   }
-  if(!is.null(pca_loadings_color_by) &&
-     pca_loadings_color_by %in% colnames(r$vmeta)){
+  ld_col = .resolve_meta_col(pca_loadings_color_by, as.data.frame(r$vmeta))
+  if(!is.null(ld_col)){
     cat(sprintf("**Loadings** _(colour =_ \x60%s\x60_; bars grouped by colour, sorted within each group)_\n\n",
+                ld_col))
+  } else if(!is.null(pca_loadings_color_by)){
+    cat(sprintf("**Loadings** _(\x60%s\x60 is not a feature_metadata column, so the bars are not coloured)_\n\n",
                 pca_loadings_color_by))
   } else {
     cat("**Loadings**\n\n")
@@ -1031,7 +1077,7 @@ if(nrow(volc_data) == 0){
 
 `r if(heatmap_include && !heatmap_general_on) "_Skipped — set_ \x60heatmap.general.enabled: True\x60 _in YAML to enable._"`
 
-`r if(heatmap_include && heatmap_general_on) sprintf("All features retained. Cells show per-feature %s of %s; samples coloured by \x60%s\x60%s. Scope: **%s** (Global and/or one tab per comparison). Feature labels: %s.", heatmap_general_cfg$scale, heatmap_general_cfg$transform, heatmap_general_cfg$color_samples_by, if(!is.null(heatmap_general_cfg$group_features_by)) sprintf(", features grouped by \x60%s\x60", heatmap_general_cfg$group_features_by) else "", heatmap_general_scope, heatmap_general_cfg$feature_labels)`
+`r if(heatmap_include && heatmap_general_on) sprintf("All features retained. Cells show per-feature %s of %s; samples coloured by \x60%s\x60%s. Scope: **%s** (Global and/or one tab per comparison). Feature labels: %s.", heatmap_general_cfg$scale, heatmap_general_cfg$transform, heatmap_general_cfg$color_samples_by, .gf_caption(heatmap_general_cfg$group_features_by), heatmap_general_scope, heatmap_general_cfg$feature_labels)`
 
 ```{r heatmap, eval=heatmap_include, fig.width=max(10, ncol(bio_matrix)*0.18)*fig_scale, fig.height=max(5, nrow(bio_matrix)*0.22 + 2)*fig_scale}
 # Shared heatmap renderer — called for every scope target across 4.5/4.6/4.7.
@@ -1303,7 +1349,7 @@ for(tg in .tg45){
 
 `r if(heatmap_include && !heatmap_topchg_on) "_Skipped — set_ \x60heatmap.top_changing.enabled: True\x60 _in YAML to enable._"`
 
-`r if(heatmap_include && heatmap_topchg_on) sprintf("Top %d features per \x60%s\x60 class. Comparison tabs rank by %s; the Global tab ranks by separation across \x60%s\x60 (no single contrast). Scope: **%s**. Feature labels: %s.", heatmap_topchg_n, heatmap_topchg_cfg$group_features_by %||% "class", heatmap_topchg_rank, heatmap_topchg_cfg$color_samples_by, heatmap_topchg_scope, heatmap_topchg_cfg$feature_labels)`
+`r if(heatmap_include && heatmap_topchg_on) sprintf("%s Comparison tabs rank by %s; the Global tab ranks by separation across \x60%s\x60 (no single contrast). Scope: **%s**. Feature labels: %s.", .tc_caption(heatmap_topchg_cfg$group_features_by), heatmap_topchg_rank, heatmap_topchg_cfg$color_samples_by, heatmap_topchg_scope, heatmap_topchg_cfg$feature_labels)`
 
 ```{r heatmap-topchg-precompute, include=FALSE, eval=heatmap_include && heatmap_topchg_on}
 .tg46 = .heatmap_targets(heatmap_topchg_scope)

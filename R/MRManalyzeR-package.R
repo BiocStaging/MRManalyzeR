@@ -2,9 +2,9 @@
 #'
 #' Processes and analyses targeted lipidomics and metabolomics data exported from
 #' Waters TargetLynx or Skyline: builds a peak-area / concentration matrix with
-#' signal-to-noise or LOD/LOQ filtering, blank filtering, normalisation,
-#' calibration/internal-standard concentration adjustment, missing-value
-#' imputation and batch correction, then runs the statistical analyses and
+#' signal-to-noise or LOD/LOQ filtering, blank filtering, batch correction,
+#' normalisation, calibration/internal-standard concentration adjustment and
+#' missing-value imputation, then runs the statistical analyses and
 #' renders two self-contained HTML reports.
 #'
 #' The workflow falls into four stages. Everything from stage 1 onwards is
@@ -24,8 +24,8 @@
 #' config, a stored dataset, and several datasets merged into one.
 #'
 #' @section 2. Peak-matrix processing:
-#' What is the true concentration? [filterBlanks()], [normaliseMatrix()],
-#' [adjustConcentration()], [imputeMissing()] and [correctBatch()], with
+#' What is the true concentration? [filterBlanks()], [correctBatch()],
+#' [normaliseMatrix()], [adjustConcentration()] and [imputeMissing()], with
 #' [subsetDataset()] to slice a dataset by sample metadata.
 #' [processDataset()] composes stages 1 and 2 in one call.
 #'
@@ -51,7 +51,7 @@
 #' @importFrom utils head
 #' @importFrom stats median
 #' @importFrom methods new
-#' @importFrom struct model_apply
+#' @importFrom struct DatasetExperiment
 "_PACKAGE"
 
 # dplyr NSE column references used across the readers / assemble step.
@@ -68,7 +68,10 @@ utils::globalVariables(c("ID", "ID2", "Name", "S/N", "Report", "Compound"))
 #'
 #' Try the name exactly as written first, so a workbook that genuinely has
 #' both `S-group` and `S.group` is not silently redirected, then its
-#' `make.names()` form.
+#' `make.names()` form, and last a column whose own `make.names()` form
+#' matches - so the stored spelling (`Chrom.Batch`) also finds a heading as
+#' written in the workbook (`Chrom-Batch`), which the checks made before
+#' import see.
 #'
 #' @param name Column name from the config, or `NULL`.
 #' @param df Data frame whose columns are being matched.
@@ -82,6 +85,8 @@ utils::globalVariables(c("ID", "ID2", "Name", "S/N", "Report", "Compound"))
   if(nm %in% colnames(df))      return(nm)
   alt = make.names(nm)
   if(alt %in% colnames(df))     return(alt)
+  hit = colnames(df)[make.names(colnames(df)) == alt]
+  if(length(hit) == 1L)         return(hit)
   NULL
 }
 

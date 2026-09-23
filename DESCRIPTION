@@ -1,7 +1,7 @@
 Package: MRManalyzeR
 Type: Package
 Title: Process and Analyse Targeted LC-MS Lipidomics and Metabolomics Data
-Version: 0.99.3
+Version: 0.99.4
 Authors@R: c(
     person("Matthew J.", "Smith",
            email = "mattyjsmith123@gmail.com",
@@ -15,11 +15,11 @@ Description: Reproducible post-acquisition processing of targeted LC-MS/MS
     from Skyline, or supplied as a plain sample-by-analyte matrix. Reads the
     quantitative result tables, integrates them with sample and feature
     metadata, and applies configurable signal filtering (SNR, LOD or LOQ),
-    blank filtering, normalisation, internal-standard and volume adjustment
-    of vendor-reported concentrations, missing-value imputation and batch
-    correction. Each step is an exported function acting on a struct
+    blank filtering, batch correction, normalisation, internal-standard and
+    volume adjustment of vendor-reported concentrations, and missing-value
+    imputation. Each step is an exported function acting on a struct
     DatasetExperiment; a complete workflow can additionally be driven from a
-    single YAML configuration via run_MRManalyzeR(), which also renders
+    single YAML configuration via runMRManalyzeR(), which also renders
     self-contained HTML data-quality and statistical reports. Chromatographic
     peak detection, peak integration and calibration-curve fitting from raw
     mass-spectrometry data are outside its scope.
@@ -46,7 +46,8 @@ Imports:
     ggnewscale,
     rlang,
     grDevices,
-    pheatmap
+    pheatmap,
+    withr
 Suggests:
     pmp,
     ggrepel,
@@ -57,8 +58,7 @@ Suggests:
     cowplot,
     gridExtra,
     BiocStyle,
-    testthat (>= 3.0.0),
-    withr
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.0.0

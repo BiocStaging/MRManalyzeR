@@ -10,7 +10,8 @@ runMRManalyzeRCombine(path_yaml)
 \item{path_yaml}{Full path to the combine YAML.}
 }
 \value{
-Invisibly, a list with the merged `DatasetExperiment`, the
+Invisibly, a list with the merged `DatasetExperiment`, its
+  `measured` counterpart (the same object when no panel stored one), the
   `stats_tables`, and the output paths.
 }
 \description{
@@ -28,9 +29,18 @@ Outputs:
 \itemize{
   \item `<output_stub>.RDS`        - merged `DatasetExperiment`
   \item `<output_stub>.xlsx`       - feature_metadata / sample_metadata / matrix tabs
+  \item `<output_stub>_measured.RDS` - the same merge of the panels'
+    measured values, when any panel stored a `_measured.RDS`; the xlsx
+    then gains a `matrix_measured` tab
   \item `<output_stub>_stats.xlsx` - key / stats / correlations / linear_models
   \item `<output_stub>_stats_report.html`
 }
+
+A panel run with `replace_MVs:` exports an imputed matrix and stores its
+measured values beside it as `<name>_measured.RDS`. The merged `.RDS` and
+`matrix` tab hold what each panel exported; the statistics and the report
+use the merge of the measured values unless `stats_report` sets
+`use_imputed: True`.
 
 YAML schema (see `inst/extdata/example_combine_config.yml`):
 \preformatted{
@@ -49,6 +59,7 @@ combine:
   units:             "combined"
 stats_report:
   execute: True
+  use_imputed: False             # True = statistics on the imputed merge
   comparisons:   [...]
   correlations:  [...]
   linear_models: [...]

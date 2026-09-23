@@ -6,23 +6,29 @@
 \usage{
 runPCA(
   X,
-  impute = c("min", "half_min", "frac_min", "none"),
+  impute = c("gaussian", "frac_min", "min", "half_min", "none"),
   impute_frac = 0.5,
   transform = c("log2", "sqrt", "none"),
   center = TRUE,
   scale = TRUE,
   feat_na_max = 1,
-  sample_na_max = 1
+  sample_na_max = 1,
+  seed = 42
 )
 }
 \arguments{
 \item{X}{A `struct::DatasetExperiment` (its `data` is used), or a numeric
 matrix / data frame of samples x features. May contain NAs.}
 
-\item{impute}{one of `"none"`, `"min"`, `"half_min"`, `"frac_min"` (default `"min"`).
-`"frac_min"` multiplies the per-feature minimum by `impute_frac` (e.g. 0.2).}
+\item{impute}{`"gaussian"` (default), `"frac_min"`, `"min"`, `"half_min"`
+or `"none"`. `"gaussian"` fills each NA with its own random value between
+0 and `impute_frac` x the feature's minimum (a normal centred at half
+that ceiling, SD a sixth of it - see [imputeMissing()]); `"frac_min"`,
+`"min"` and `"half_min"` fill every NA with `impute_frac`, 1 or 0.5 x the
+minimum. Zeros count as missing for every option except `"none"`.}
 
-\item{impute_frac}{Numeric multiplier used when `impute = "frac_min"` (default 0.5).}
+\item{impute_frac}{Fraction of the per-feature minimum used by
+`"gaussian"` and `"frac_min"` (default 0.5).}
 
 \item{transform}{one of `"none"`, `"log2"`, `"sqrt"` (default `"log2"`).}
 
@@ -39,6 +45,9 @@ Set e.g. `0.5` to also drop features missing in more than 50 percent of samples.
 Samples exceeding this threshold are dropped before imputation.
 Default `1` applies no sample filtering (original behaviour).
 Set e.g. `0.8` to drop samples missing more than 80 percent of features.}
+
+\item{seed}{Random seed for `impute = "gaussian"`, so a rerun gives the
+same PCA; `NULL` uses the current random stream.}
 }
 \value{
 A list with elements
@@ -57,7 +66,8 @@ Standard metabolomics-style preprocessing pipeline:
   \item Drop all-NA features (always). Optionally apply a stricter
         feature missing-value filter (`feat_na_max`).
   \item Optionally drop samples with too many missing values (`sample_na_max`).
-  \item Impute remaining NAs (per-feature minimum or half-minimum).
+  \item Impute remaining NAs below each feature's lowest measured value
+        (random draws by default - see `impute`).
   \item Optional transform (log2(x+1) or sqrt(x)).
   \item Drop zero-variance features.
   \item `prcomp(center, scale.)` - mean-centre and (optionally) autoscale.

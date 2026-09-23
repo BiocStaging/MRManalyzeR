@@ -64,8 +64,8 @@ figure alone -- in line with FAIR principles (Wilkinson *et al.*, 2016).
 
 The package currently reads Waters **TargetLynx** exports (the primary format),
 **Skyline** exports, and plain sample-by-analyte matrices from any other
-software, and covers signal filtering, blank filtering, normalisation,
-concentration adjustment, missing-value imputation and batch correction,
+software, and covers signal filtering, blank filtering, batch correction,
+normalisation, concentration adjustment and missing-value imputation,
 followed by quality control, statistics and two self-contained HTML reports.
 
 ## Scope, and where this sits among related packages
@@ -84,7 +84,7 @@ it, and from the existing targeted-MRM tools:
 | Raw untargeted LC-MS feature detection and alignment | `xcms` |
 | General metabolomics peak-matrix preprocessing | `pmp` |
 | Metabolite annotation-table workflows | `MetMashR` |
-| Chromatogram processing, peak integration, automated identification | MRMAnalyzer, MRMkit, MRMQuant |
+| Chromatogram processing, peak integration, automated identification | MRMkit, MRMQuant |
 | Post-acquisition targeted-assay processing, QC and reporting | **MRManalyzeR** |
 
 The design assumes a validated targeted panel of >20 MRM transitions, known
@@ -101,10 +101,9 @@ Worth knowing before you rely on the output.
 
 * **Batch correction equalises batch medians.** It assumes the reference
   samples (`QC`, or biological samples if the design is balanced across
-  batches) are comparable between batches. `correctBatch()` refuses to run
-  without enough reference injections per batch, and warns when the batch
-  variable is confounded with a study factor -- but it cannot detect a design
-  where that confounding is total.
+  batches) are comparable between batches. `correctBatch()` fails without
+  enough reference injections per batch, and warns when the batch variable is
+  confounded with a study factor.
 * **Normalisation and quantification depend on assay design.** MRManalyzeR
   accommodates a range of targeted workflows, whether reporting unadjusted peak
   areas or fully calibrated concentrations. Its built-in normalisation and
@@ -117,10 +116,10 @@ Worth knowing before you rely on the output.
   internal-standard concentration ratio and the sample-volume correction
   (assuming sample vial concentration is provided); it does not fit or refit a
   calibration curve.
-* **Imputation is a fixed fraction of each compound's observed minimum.** That
-  is a convention that can be modulated based on the user's expertise, not an
-  estimate. Values below the detection limit and values missing for other
-  reasons are not currently distinguished.
+* **Imputation draws values below a fixed fraction of each compound's observed
+  minimum.** That is a convention that can be modulated based on the user's
+  expertise, not an estimate. Values below the detection limit and values
+  missing for other reasons are not currently distinguished.
 * **Statistical methods are chosen by the user, per comparison.** Nothing is
   selected automatically from the data, and no test is run in parallel with
   another so that the more convenient answer can be picked afterwards.
@@ -140,7 +139,7 @@ handed a matching metadata table a second time.
 |---|---|---|
 | 0. Validation | Is the input usable, and the design sound? | `validateInput()`, `validateDesign()` |
 | 1. Data parse | What did the instrument report? | `readTargetLynx()`, `readSkyline()`, `assembleDataset()`, `loadConfig()`, `loadDataset()`, `combineDatasets()` |
-| 2. Peak-matrix processing | What is the true concentration? | `filterBlanks()`, `normaliseMatrix()`, `adjustConcentration()`, `imputeMissing()`, `correctBatch()`, `subsetDataset()`, `processDataset()` |
+| 2. Peak-matrix processing | What is the true concentration? | `filterBlanks()`, `correctBatch()`, `normaliseMatrix()`, `adjustConcentration()`, `imputeMissing()`, `subsetDataset()`, `processDataset()` |
 | 3. QC check | Can these numbers be trusted? | `addCVMetrics()`, `summariseFeatures()`, `runPCA()`, `plotDrift()`, `plotQQ()`, `plotPCA()`, `plotLoadings()` |
 | 4. Stats | What do these numbers mean? | `runStats()`, `summariseGroups()`, `plotBoxplot()`, `plotVolcano()`, `plotHeatmap()`, `plotGroupHeatmap()`, `plotCorrelation()` |
 
@@ -160,9 +159,9 @@ handed a matching metadata table a second time.
            |                   DatasetExperiment
            |                           |
            |          filterBlanks -> filterFeatures ->    [2]
-           |          filterSamples -> normaliseMatrix ->
-           +--------> adjustConcentration -> imputeMissing
-                      then correctBatch
+           |          filterSamples -> correctBatch ->
+           +--------> normaliseMatrix -> adjustConcentration
+                      -> imputeMissing
                                        |
                                        v
                           processed DatasetExperiment
@@ -378,9 +377,10 @@ sum(is.na(de$data))
 ## Detection filters
 
 A compound that was never really detected still occupies a column, and carries
-into the statistics, the heatmap and the exported workbook as a row of
-mostly-imputed values. `filterFeatures()` removes those and `filterSamples()`
-removes injections that missed most of the panel. Both are off by default.
+into the statistics and the heatmap as a row of mostly-missing values - and into
+an imputed workbook as mostly-invented ones. `filterFeatures()` removes those
+and `filterSamples()` removes injections that missed most of the panel. Both
+are off by default.
 
 The subtlety is *which* samples the detection fraction is computed over. Take a
 compound present throughout one treatment group and absent from the others --
@@ -449,6 +449,59 @@ batch with a different set of columns. In a YAML config they are the
 `filter_features:` and `filter_samples:` blocks, applied after the blank filter
 and before imputation -- imputation fills the very cells these measure.
 
+## Batch correction
+
+Where an acquisition spans several days or columns, response can shift between
+batches. `correctBatch()` scales each batch so its per-feature median matches
+the grand median across the reference samples. It runs straight after the
+filters, on the instrument signal, and before normalisation, concentration
+adjustment and imputation. A missing value counts as zero: a compound missing
+from most of a batch's QCs is described as such, thus impacting the median
+calculation, avoiding it being based on few injections where it was found.
+Where more than half of values for a compound are missing, the median is zero,
+and correction is not applied for this compound only. The failing batches are
+printed and kept in `bc_failed_batches`. To correct only part of the panel,
+pass `feature_col` -- a `feature_metadata` column of `YES` / `NO`.
+
+```{r step-batch}
+batch     <- stats::setNames(de$sample_meta$Chrom_Batch,
+                             rownames(as.data.frame(de$data)))
+de_uncorr <- de
+
+de <- correctBatch(de, qc_label = "QC",
+                    factor_name = "Sample_type",
+                    batch_head  = "Chrom_Batch")
+de_bc     <- de
+```
+
+Taking the most completely measured analyte as an example, the two batch
+medians -- counting a missing value as zero, as the correction does -- are
+pulled together:
+
+```{r step-batch-medians}
+j   <- which.min(colSums(is.na(as.data.frame(de_uncorr$data))))
+med <- function(x) tapply(as.data.frame(x$data)[[j]], batch,
+                          function(v) median(replace(v, is.na(v), 0)))
+
+rbind(before = med(de_uncorr),
+      after  = med(de))
+```
+
+A compound whose reference median is zero in any batch is left as measured in
+all of them rather than corrected in some. In this dataset the two analytes
+simulated near their detection limit are below it in more than half of the
+batch-2 QCs, which puts that median at zero. They are listed here, and they
+still carry the batch difference in the PCA further down:
+
+```{r step-batch-failed}
+vm <- as.data.frame(de_bc$variable_meta)
+vm[nzchar(vm$bc_failed_batches), c("Compound", "bc_failed_batches")]
+```
+
+Use pooled QC injections as the reference (`qc_label = "QC"`) whenever the
+design has enough of them in every batch; falling back to `"Sample"` assumes
+the batches are biologically comparable.
+
 ## Normalise
 
 `normaliseMatrix()` divides each sample by a known per-sample amount --
@@ -514,19 +567,25 @@ round(as.data.frame(de$data)[1:3, 1:3], 5)
 
 ## Impute missing values
 
-`imputeMissing()` replaces the remaining `NA`s in the biological samples with a
-fraction of that compound's minimum observed value, treating a non-detect as
-lying just below the lowest measurement rather than as a zero. `scalar = 0.5` is
-the half-minimum rule; a smaller fraction such as the 0.2 used here is more
-conservative, and is the better default where the panel has compounds sitting
-near the detection limit. Blanks are left untouched.
+`imputeMissing()` fills the remaining `NA`s in the biological samples with
+values below that compound's lowest measurement, treating a non-detect as lying
+under the detection floor rather than at zero. The ceiling is `scalar` times the
+minimum -- 0.2 here -- and by default every cell gets its own random draw
+between 0 and that ceiling, from a normal centred mid-range. A single constant
+would give every non-detect the same value, which shrinks a compound's variance
+and ties its ranks; `method = "constant"` does that if it is wanted. The draws
+use a fixed `seed`, so a rerun is identical. Blanks are left untouched.
 
-Other strategies are available where they matter most, in the PCA
-pre-processing (`runPCA(impute = )`), which offers `"none"`, `"min"`,
-`"half_min"` and `"frac_min"` alongside missing-value filters that drop
-features or samples above a missingness threshold instead of imputing them.
-For targeted panels the choice is rarely critical: a compound missing in most
-samples is usually better dropped than modelled.
+The PCA pre-processing (`runPCA(impute = )`) offers the same random fill
+(`"gaussian"`, its default) alongside `"frac_min"`, `"min"`, `"half_min"` and
+`"none"`, and missing-value filters that drop features or samples above a
+missingness threshold instead of imputing them. For targeted panels a compound
+missing in most samples is usually better dropped than modelled.
+
+Imputation comes last, after batch correction, normalisation and concentration
+adjustment. In a YAML-driven run it fills the exported matrix and the PCAs; the
+tests and plots use the measured values unless `use_imputed: True` is set. With
+`replace_MVs` off, the PCAs impute for themselves.
 
 ```{r step-impute}
 de <- imputeMissing(de, scalar = 0.2, blank_head = "Sample_type",
@@ -534,41 +593,22 @@ de <- imputeMissing(de, scalar = 0.2, blank_head = "Sample_type",
 sum(is.na(de$data))
 ```
 
-## Batch correction
+Imputation is recorded in `variable_meta`: the ceiling (`impute_max`), how many
+cells it filled (`n_imputed`) and what share of the compound's samples that is
+(`frac_imputed`). A compound with a high `frac_imputed` is mostly invented, and
+a difference found in it says more about the fill than about the biology:
 
-Where an acquisition spans several days or columns, response can shift between
-batches. `correctBatch()` scales each batch so its per-feature median matches
-the grand median across the reference samples:
-
-```{r step-batch}
-batch     <- stats::setNames(de$sample_meta$Chrom_Batch,
-                             rownames(as.data.frame(de$data)))
-de_uncorr <- de
-
-de <- correctBatch(de, qc_label = "QC",
-                    factor_name = "Sample_type",
-                    batch_head  = "Chrom_Batch")
+```{r step-impute-record}
+vm <- as.data.frame(de$variable_meta)
+head(vm[order(-vm$frac_imputed),
+        c("impute_max", "n_imputed", "frac_imputed")])
 ```
-
-Taking the first analyte as an example, the two batch medians are pulled
-together:
-
-```{r step-batch-medians}
-med <- function(x) tapply(as.data.frame(x$data)[[1]], batch, median)
-
-rbind(before = med(de_uncorr),
-      after  = med(de))
-```
-
-Use pooled QC injections as the reference (`qc_label = "QC"`) whenever the
-design has enough of them in every batch; falling back to `"Sample"` assumes
-the batches are biologically comparable.
 
 ## The whole matrix in one call
 
-`processDataset()` composes stages 1 and 2 -- read, assemble, then filter /
-normalise / adjust / impute within each acquisition batch, then batch-correct
--- driven by the same metadata sheets:
+`processDataset()` composes stages 1 and 2 -- read, assemble, filter,
+batch-correct, normalise, adjust, then impute -- driven by the same metadata
+sheets:
 
 ```{r step-process}
 out <- processDataset(
@@ -581,7 +621,7 @@ out <- processDataset(
   normalize        = "protein_ug",
   adjust_conc      = TRUE,
   starting_vol_col = "starting_vol_uL",
-  replace_MVs      = 0.5,
+  replace_MVs      = 0.2,
   batch_correction = TRUE,
   bc_qc_label      = "QC",
   bc_header        = "Chrom_Batch",
@@ -594,6 +634,16 @@ dim(out[[1]]$data)
 the same table the data-quality report surfaces as "compounds excluded", and
 the first place to look when a compound you expected is missing from the
 output.
+
+`out$measured` is the same dataset before imputation, gaps included -- what
+the reports and statistics use in a YAML-driven run unless `use_imputed: True`
+is set. `out[[1]]` has its gaps filled everywhere except in the blanks, which
+are left as they were:
+
+```{r step-process-measured}
+sum(is.na(out$measured$data))                         # gaps as measured
+sum(as.data.frame(out[[1]]$variable_meta)$n_imputed)  # filled in out[[1]]
+```
 
 The processed dataset also ships ready-made, which is what the rest of this
 vignette uses:
@@ -667,7 +717,7 @@ real sample, so it can dominate the variance the PCA is trying to describe.
 ```{r qc-pca}
 syn_bio <- subsetDataset(syn, conditions = list(Sample_type = c("Sample", "QC")))
 
-pca <- runPCA(syn_bio, impute = "frac_min", impute_frac = 0.2,
+pca <- runPCA(syn_bio, impute = "gaussian", impute_frac = 0.2,
                transform = "log2", feat_na_max = 0.6,
                sample_na_max = 0.6)
 pca$steps
@@ -689,7 +739,7 @@ PCA before and after `correctBatch()`:
 ```{r qc-pca-batch, fig.height = 3.4}
 pca_by_batch <- function(x, title){
   x <- subsetDataset(x, conditions = list(Sample_type = c("Sample", "QC")))
-  p <- runPCA(x, impute = "frac_min", impute_frac = 0.2,
+  p <- runPCA(x, impute = "gaussian", impute_frac = 0.2,
                transform = "log2")
   plotPCA(p, x, colour_by = "Chrom_Batch") +
     ggplot2::labs(title = title)
@@ -697,7 +747,7 @@ pca_by_batch <- function(x, title){
 
 cowplot::plot_grid(
   pca_by_batch(de_uncorr, "Before batch correction"),
-  pca_by_batch(de,        "After batch correction"),
+  pca_by_batch(de_bc,     "After batch correction"),
   nrow = 1)
 ```
 
@@ -949,6 +999,11 @@ PeakMatrixProcessing:
     sample_col: Sample_type      # only study samples are ever removed
     sample_labels: ["Sample"]
 
+  batch_correction: True         # True | False | feature_metadata YES/NO column
+  bc_qc_label: "QC"
+  bc_factor_name: "Sample_type"
+  bc_header: "Chrom_Batch"
+
   normalize: protein_ug          # False | sample_metadata column
 
   adjust_conc:
@@ -959,21 +1014,40 @@ PeakMatrixProcessing:
     sample_IS_col:    sample_IS_vol_uL
     cal_IS_col:       cal_IS_vol_uL
 
-  replace_MVs: 0.5               # False | scalar x per-feature min
-  batch_correction: True
-  bc_qc_label: "QC"
-  bc_factor_name: "Sample_type"
-  bc_header: "Chrom_Batch"
+  replace_MVs: 0.2               # False = no imputation. 0.2 = fill below a
+                                 #   ceiling of 0.2 x the compound's minimum
+  impute_method: gaussian        # gaussian = random values between 0 and the
+                                 #   ceiling | constant = the ceiling itself
+  impute_seed: 42                # same seed, same fills on every rerun
 ```
 
 `data_quality_report:` and `stats_report:` configure stages 3 and 4 in the same
 declarative way -- which column identifies QCs, which factors to compare, which
 plots to draw. See the bundled file for the fully commented set.
 
+For missing values, each report sets which matrix its tests and plots use, and
+how its PCA fills whatever `replace_MVs` left missing -- everything, when
+`replace_MVs: False`. `data_quality_report:` takes the same keys, with its PCA
+under `qc_pca:`:
+
+```yaml
+stats_report:
+  use_imputed: False             # False = tests and plots on measured values
+  pca:
+    preprocess:
+      feat_na_max:   0.6         # drop compounds and samples missing
+      sample_na_max: 0.6         #   in more than 60%
+      impute:      gaussian      # gaussian | frac_min | min | half_min | none
+      impute_frac: 0.2
+      seed:        42
+```
+
 Outputs are written next to your data: the processed matrix as `.xlsx` and
-`.RDS`, a `_stats.xlsx` carrying `stats`, `correlations`, `linear_models`,
-`ion_ratios` and `summary`, the two self-contained HTML reports, and a text
-file recording the exact parameters used.
+`.RDS` (imputed when `replace_MVs` is set, with the measured values as a
+`matrix_measured` sheet and a `_measured.RDS`), a `_stats.xlsx` carrying
+`stats`, `correlations`, `linear_models`, `ion_ratios` and `summary`, the two
+self-contained HTML reports, and a text file recording the exact parameters
+used.
 
 The stats workbook opens on a `key` sheet defining every column heading it
 contains -- what `adjust_family` covers, how `log2FC` is signed, which effect

@@ -8,8 +8,8 @@
 # bundled TargetLynx workbook (example_data.xlsx) is the real dataset; this one
 # exists because that one cannot exercise the whole workflow: it is a single
 # chromatographic batch, one reconstitution volume for every vial, and has no
-# per-sample amount to normalise to, so normalise_matrix(), correct_batch() and
-# adjust_concentration() would all be no-ops on it.
+# per-sample amount to normalise to, so normaliseMatrix(), correctBatch() and
+# adjustConcentration() would all be no-ops on it.
 #
 # What is deliberately planted, so the documentation can show each step
 # recovering something known:
@@ -18,11 +18,11 @@
 #     feature_metadata$Simulated_log2FC; the other 15 are flat), so the stats
 #     stage can be checked against the truth;
 #   * a per-analyte RESPONSE SHIFT between the two chromatographic batches,
-#     so correct_batch() has something to remove and a PCA coloured by batch
+#     so correctBatch() has something to remove and a PCA coloured by batch
 #     separates before correction and not after;
 #   * QC injections drawn with ~8 percent noise against ~35 percent between
 #     animals, so CV_QC, CV_sample and their ratio are realistic;
-#   * signal proportional to protein_ug (divided out by normalise_matrix) and
+#   * signal proportional to protein_ug (divided out by normaliseMatrix) and
 #     inversely proportional to the reconstitution volume, which differs
 #     between batches;
 #   * a per-analyte LOD that masks the bottom of each distribution, with two
@@ -83,7 +83,7 @@ treatment[is_sample] <- design$Treatment
 genotype[is_sample]  <- design$Type
 
 # --- Per-injection metadata -------------------------------------------------
-# Protein drives the measured signal and is divided out by normalise_matrix().
+# Protein drives the measured signal and is divided out by normaliseMatrix().
 protein <- rep(250, n_inj)
 protein[is_sample] <- round(stats::rnorm(sum(is_sample), 250, 45))
 
@@ -190,7 +190,7 @@ message("[make_example_synthetic] wrote ", out_xlsx, " - ",
 # --- Processed DatasetExperiment, for the man-page examples ------------------
 # Shipping the processed object means every plot example is three lines and
 # needs no workbook parsing during R CMD check.
-de <- process_dataset(
+de <- processDataset(
   feature_meta, sample_meta,
   xlsx_path        = out_xlsx,
   data_source      = "skyline",
@@ -200,14 +200,14 @@ de <- process_dataset(
   normalize        = "protein_ug",
   adjust_conc      = TRUE,
   starting_vol_col = "starting_vol_uL",
-  replace_MVs      = 0.5,
+  replace_MVs      = 0.2,
   batch_correction = TRUE,
   bc_qc_label      = "QC",
   bc_factor_name   = "Sample_type",
   bc_header        = "Chrom_Batch",
   blank_head       = "Sample_type")[[1]]
 
-de <- add_cv_metrics(de, sample_type_head = "Sample_type",
+de <- addCVMetrics(de, sample_type_head = "Sample_type",
                      qc_label = "QC", sample_labels = "Sample")
 
 saveRDS(de, out_rds)

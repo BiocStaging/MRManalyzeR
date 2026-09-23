@@ -5,7 +5,8 @@
 #'   \item Drop all-NA features (always). Optionally apply a stricter
 #'         feature missing-value filter (`feat_na_max`).
 #'   \item Optionally drop samples with too many missing values (`sample_na_max`).
-#'   \item Impute remaining NAs (per-feature minimum or half-minimum).
+#'   \item Impute remaining NAs below each feature's lowest measured value
+#'         (random draws by default - see `impute`).
 #'   \item Optional transform (log2(x+1) or sqrt(x)).
 #'   \item Drop zero-variance features.
 #'   \item `prcomp(center, scale.)` - mean-centre and (optionally) autoscale.
@@ -17,9 +18,14 @@
 #'
 #' @param X A `struct::DatasetExperiment` (its `data` is used), or a numeric
 #'   matrix / data frame of samples x features. May contain NAs.
-#' @param impute one of `"none"`, `"min"`, `"half_min"`, `"frac_min"` (default `"min"`).
-#'   `"frac_min"` multiplies the per-feature minimum by `impute_frac` (e.g. 0.2).
-#' @param impute_frac Numeric multiplier used when `impute = "frac_min"` (default 0.5).
+#' @param impute `"gaussian"` (default), `"frac_min"`, `"min"`, `"half_min"`
+#'   or `"none"`. `"gaussian"` fills each NA with its own random value between
+#'   0 and `impute_frac` x the feature's minimum (a normal centred at half
+#'   that ceiling, SD a sixth of it - see [imputeMissing()]); `"frac_min"`,
+#'   `"min"` and `"half_min"` fill every NA with `impute_frac`, 1 or 0.5 x the
+#'   minimum. Zeros count as missing for every option except `"none"`.
+#' @param impute_frac Fraction of the per-feature minimum used by
+#'   `"gaussian"` and `"frac_min"` (default 0.5).
 #' @param transform one of `"none"`, `"log2"`, `"sqrt"` (default `"log2"`).
 #' @param center logical, passed to [stats::prcomp()].
 #' @param scale logical, passed to [stats::prcomp()] as `scale.`.
@@ -31,6 +37,8 @@
 #'   Samples exceeding this threshold are dropped before imputation.
 #'   Default `1` applies no sample filtering (original behaviour).
 #'   Set e.g. `0.8` to drop samples missing more than 80 percent of features.
+#' @param seed Random seed for `impute = "gaussian"`, so a rerun gives the
+#'   same PCA; `NULL` uses the current random stream.
 #' @return A list with elements
 #'   \describe{
 #'     \item{`pr`}{the `prcomp` object, or `NULL` if PCA could not be fit.}
@@ -48,13 +56,15 @@
 #' @family QC check
 #' @export
 runPCA = function(X,
-                            impute        = c("min", "half_min", "frac_min", "none"),
+                            impute        = c("gaussian", "frac_min", "min",
+                                              "half_min", "none"),
                             impute_frac   = 0.5,
                             transform     = c("log2", "sqrt", "none"),
                             center        = TRUE,
                             scale         = TRUE,
                             feat_na_max   = 1,
-                            sample_na_max = 1){
+                            sample_na_max = 1,
+                            seed          = 42){
 
   impute    = match.arg(impute)
   transform = match.arg(transform)
@@ -101,23 +111,24 @@ runPCA = function(X,
     steps = c(steps, "No sample missing-value filter (sample_na_max = 1).")
   }
 
-  # 3. Impute remaining NAs
-  if(impute %in% c("min", "half_min", "frac_min")){
+  # 3. Impute remaining NAs below each feature's lowest measured value
+  if(impute != "none"){
     fac = switch(impute,
                  min      = 1,
                  half_min = 0.5,
-                 frac_min = as.numeric(impute_frac))
-    for(j in seq_len(ncol(X))){
-      if(any(is.na(X[, j]))){
-        mn = suppressWarnings(min(X[, j], na.rm = TRUE))
-        if(is.finite(mn)) X[is.na(X[, j]), j] = mn * fac
-      }
-    }
-    fac_label = switch(impute,
-                       min      = "minimum",
-                       half_min = "half-minimum",
-                       frac_min = sprintf("%g x minimum", as.numeric(impute_frac)))
-    steps = c(steps, sprintf("Imputed NAs with per-feature %s.", fac_label))
+                 as.numeric(impute_frac))
+    random = identical(impute, "gaussian")
+    X = if(random && !is.null(seed))
+      withr::with_seed(seed, .fill_below_min(X, fac, TRUE)) else
+      .fill_below_min(X, fac, random)
+    steps = c(steps, if(random)
+      sprintf(paste0("Imputed NAs with random values between 0 and %g x the ",
+                     "per-feature minimum (normal, mean at half that ceiling, ",
+                     "SD a sixth of it; seed %s)."),
+              fac, if(is.null(seed)) "none" else seed)
+      else sprintf("Imputed NAs with per-feature %s.",
+                   switch(impute, min = "minimum", half_min = "half-minimum",
+                          sprintf("%g x minimum", fac))))
   } else {
     steps = c(steps, "No NA imputation.")
   }

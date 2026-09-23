@@ -9,13 +9,15 @@ processDataset(
   metadata,
   xlsx_path = NULL,
   data_source = "targetlynx",
-  data_tab_names = "skyline_data",
+  data_tab_names = NULL,
   datatype = "Area",
   tl_headers = c("ID", "Name", "Area", "ng/mL", "Response", "S/N"),
   signal_filter = NULL,
   snr = 5,
   blank_filter = 5,
   replace_MVs = FALSE,
+  impute_method = "gaussian",
+  impute_seed = 42,
   batch_correction = FALSE,
   bc_qc_label = "QC",
   bc_factor_name = "Sample_type",
@@ -63,9 +65,11 @@ selects the reader. `"matrix"` is the vendor-neutral route via
 [readPeakMatrix()]: any software that can export a rectangular
 sample x analyte table can be used without a dedicated parser.}
 
-\item{data_tab_names}{Sheet name(s) holding the Skyline molecule x sample
-matrix; only used when `data_source = "skyline"`. Multiple names are
-treated as separate acquisition batches and row-bound together - see
+\item{data_tab_names}{Sheet name(s) to read from `xlsx_path`. `NULL`
+(default) uses each reader's usual sheets: every sheet whose name
+contains `"lcms_data"` for `"targetlynx"`, `"skyline_data"` for
+`"skyline"` and `"matrix_data"` for `"matrix"`. Multiple Skyline sheets
+are treated as separate acquisition batches and row-bound together - see
 `.read_skyline_matrix()`. Sheet membership does not itself imply
 batch-correction grouping; that remains driven by `sample_metadata`.}
 
@@ -77,17 +81,29 @@ batch-correction grouping; that remains driven by `sample_metadata`.}
 
 \item{signal_filter}{`"SNR"`, `"LOD"`, `"LOQ"`, or `FALSE`. `"SNR"` is
 only valid for `data_source = "targetlynx"`; `"LOD"`/`"LOQ"` are only
-valid for `data_source = "skyline"`. Default `NULL` infers `"SNR"`
+valid for `data_source = "skyline"` or `"matrix"`. Default `NULL` infers
+`"SNR"`
 unless `snr = FALSE`, for backwards compatibility with configs that
 only set `snr:`.}
 
 \item{snr}{S/N threshold. Only consulted when `signal_filter = "SNR"`.}
 
-\item{blank_filter}{Blank-filter factor; `FALSE` to skip.}
+\item{blank_filter}{Blank-filter factor; `FALSE` or `NULL` to skip.}
 
-\item{replace_MVs}{Scalar passed to [`imputeMissing()`]; `FALSE` to skip.}
+\item{replace_MVs}{Scalar passed to [`imputeMissing()`]; `FALSE` or `NULL`
+to skip. Applied last, after batch correction, normalisation and
+concentration adjustment, per `processing_batch`.}
 
-\item{batch_correction}{Logical.}
+\item{impute_method, impute_seed}{Passed to [imputeMissing()] as `method`
+and `seed`: `"gaussian"` (default) draws each fill at random below the
+per-feature ceiling, `"constant"` uses the ceiling itself.}
+
+\item{batch_correction}{`FALSE` (default) to skip, `TRUE` to correct every
+feature, or the name of an `fdata` column holding `YES` / `NO` per
+feature, so that only the `YES` features are corrected. Runs after
+the blank and detection filters, on the instrument signal, and before
+normalisation, concentration adjustment and imputation - see
+[correctBatch()].}
 
 \item{bc_qc_label, bc_factor_name, bc_header}{Batch-correction parameters:
 the reference-sample label, the column holding it, and the batch column.
@@ -98,9 +114,9 @@ differ between batches for biological reasons - see [correctBatch()].}
 warns if batch is confounded with it.}
 
 \item{processing_batch}{`sample_meta` column used to partition the *per-batch
-processing* - blank filtering, normalisation, concentration adjustment and
-imputation are each applied within a partition, so blanks and per-feature
-minima are taken from the same acquisition as the samples they apply to.
+processing* - blank filtering and imputation are each applied within a
+partition, so blanks and per-feature minima are taken from the same
+acquisition as the samples they apply to.
 `NULL` (default) reuses `bc_header`, which is what earlier versions did
 implicitly; `FALSE` processes every sample together. This is a separate
 question from which column defines the batch-correction reference, even
@@ -125,7 +141,8 @@ arguments for [filterSamples()] - `max_na`, `sample_col`,
 `sample_labels`. Runs after `filter_features`, on the reduced feature
 set, so the missing-value fraction means something.}
 
-\item{normalize}{Metadata column used as divisor, or `FALSE`.}
+\item{normalize}{Metadata column used as divisor, or `FALSE`/`NULL` for
+none.}
 
 \item{adjust_conc}{Logical master toggle for concentration adjustment via
 [adjustConcentration()], using `sample_vol_col`, `cal_vol_col`,
@@ -163,25 +180,36 @@ table curated outside a TargetLynx workflow.}
 was excluded. Default `"Comment"`.}
 }
 \value{
-A named list with `dataset` (the `DatasetExperiment`) and
-  `excluded_features` (a data frame of features dropped along the way, with
-  the reason recorded). The elements stay in that order, so existing code
+A named list with `dataset` (the `DatasetExperiment`, imputed when
+  `replace_MVs` is set), `excluded_features` (a data frame of features
+  dropped along the way, with the reason recorded) and `measured` (the same
+  dataset before imputation, gaps included; identical to `dataset` when
+  nothing was imputed). The first two stay in that order, so existing code
   indexing `[[1]]` and `[[2]]` keeps working.
 }
 \description{
 Applies (optionally) signal filtering (SNR for TargetLynx; LOD/LOQ for
-Skyline), blank filtering, missing-value imputation, normalisation,
-concentration adjustment and batch correction to produce a
+Skyline), blank and detection filtering, batch correction, normalisation,
+concentration adjustment and missing-value imputation to produce a
 `struct::DatasetExperiment`.
 }
 \details{
 The peak-matrix workflow behind [runMRManalyzeR()], composed of the public
-step functions: it reads the workbook ([readTargetLynx()] /
-[readSkyline()]) into a wide sample x compound matrix, assembles that into a
-`struct::DatasetExperiment` ([assembleDataset()]), then applies
-[filterBlanks()], [normaliseMatrix()], [adjustConcentration()] and
-[imputeMissing()] to the dataset per acquisition batch, and optionally
-batch-corrects the result ([correctBatch()]).
+step functions, in this order: it reads the workbook ([readTargetLynx()] /
+[readSkyline()]) into a wide sample x compound matrix and assembles it into
+a `struct::DatasetExperiment` ([assembleDataset()]); applies
+[filterBlanks()] per acquisition batch, then [filterFeatures()] and
+[filterSamples()] to the whole dataset; optionally batch-corrects
+([correctBatch()]); applies [normaliseMatrix()] and
+[adjustConcentration()]; and imputes last ([imputeMissing()], per batch).
+Batch correction works on the instrument signal, before any per-sample
+rescaling, and imputation comes last so every earlier step sees only
+measured values.
+
+A value of 0 is read as a non-detect and set to `NA` straight after
+reading, so no step counts it as a measurement: the detection filters count
+it as missing, the blank filter leaves it out of the blank mean, and a
+matrix that is not imputed shows a gap.
 }
 \examples{
 xlsx  <- system.file("extdata", "example_data.xlsx", package = "MRManalyzeR")
