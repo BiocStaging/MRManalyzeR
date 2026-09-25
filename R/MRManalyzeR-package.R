@@ -212,7 +212,40 @@ utils::globalVariables(c("ID", "ID2", "Name", "S/N", "Report", "Compound"))
                                   .mrm_palette()[c(1L, 2L)], lv)
        else                     stats::setNames(.qual_pal(length(lv)), lv)
   if(any(is.na(x) | x == "NA")) m = c(m, "NA" = "grey70")
+
+  # A configured colour outranks the palette, so a class keeps one colour
+  # across studies and matches figures drawn outside the package.
+  fixed = .fixed_level_colours()
+  if(length(fixed) && length(m)){
+    at = match(.colour_key(names(m)), .colour_key(names(fixed)))
+    m[!is.na(at)] = unname(fixed[at[!is.na(at)]])
+  }
   m
+}
+
+#' Level name reduced to a matching key
+#'
+#' Whitespace is dropped, ordinary and non-breaking alike, so a heading
+#' written `COX || CYP` with non-breaking spaces - which is what a
+#' spreadsheet usually stores - is configured with ordinary ones.
+#' @keywords internal
+#' @noRd
+.colour_key = function(x) gsub("[[:space:]\u00a0]+", "", as.character(x))
+
+#' Colours pinned to particular levels by the configuration
+#'
+#' `getOption("MRManalyzeR.level_colours")`, set by each report from its
+#' `colours: levels:` block. A named character vector, or the named list a
+#' YAML map arrives as.
+#' @return Named character vector, empty when nothing is configured.
+#' @keywords internal
+#' @noRd
+.fixed_level_colours = function(){
+  v = getOption("MRManalyzeR.level_colours", NULL)
+  if(!length(v)) return(character(0))
+  v = unlist(v, use.names = TRUE)
+  v = stats::setNames(as.character(v), names(v))
+  v[!is.na(names(v)) & nzchar(names(v)) & !is.na(v)]
 }
 
 #' Annotation colour list for pheatmap

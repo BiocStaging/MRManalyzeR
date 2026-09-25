@@ -1,3 +1,21 @@
+# MRManalyzeR 0.99.5
+
+* New package logo, drawn top right in both reports and used by the README.
+
+* `colours:` in either report block takes a `levels:` map that pins a class to
+  a colour - `COX: "#B03A2E"` - wherever it is drawn: the heatmap annotation
+  bar, the PCA loadings and the correlation blocks. Levels not listed keep the
+  palette. Names are matched ignoring whitespace, so a heading a spreadsheet
+  stored with non-breaking spaces (`COX || CYP`) can be written with ordinary
+  ones.
+
+* `plotGroupHeatmap()` draws the compound names between the class colour bar
+  and the cells whenever `group_features_by` is set - block, then names, then
+  data, which is how a pathway figure is read. They used to sit on the axis,
+  outside the bar. Nothing to configure; without a class column they stay on
+  the axis, and `feature_labels: hide` still drops them. `plotHeatmap()` is
+  unchanged: pheatmap draws its row names at the edge and cannot move them.
+
 # MRManalyzeR 0.99.4
 
 * New processing order: blank filter, detection filters, batch correction,

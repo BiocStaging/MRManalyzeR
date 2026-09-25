@@ -60,7 +60,10 @@
 #'   saturate and the rest get the full range.
 #' @param alpha_floor Opacity given to a sample that did not contribute to its
 #'   group's mean. Below about 0.4 those cells read as missing data.
-#' @param feature_labels `"show"`, `"small"` or `"hide"`.
+#' @param feature_labels `"show"`, `"small"` or `"hide"`. With
+#'   `group_features_by` set, the names are drawn between the class colour bar
+#'   and the cells - block, then names, then data, which is how a pathway
+#'   figure is read. Without it they sit on the axis as usual.
 #' @param sample_labels Draw the sample axis. `FALSE` for wide cohorts, where
 #'   the samples stay individually visible but not individually named.
 #' @param sample_id_head `sample_meta` column supplying sample labels; `NULL`
@@ -188,9 +191,20 @@ plotGroupHeatmap = function(de, color_samples_by,
 
   # y is drawn bottom-up, so the display order is reversed and the sample
   # annotation bar becomes the topmost level.
+  # Names between the class bar and the cells: reserve columns for them on
+  # the x axis, then draw them as text rather than as axis labels. How many
+  # columns is a guess from the longest name, because how many cells a name
+  # spans depends on the panel size, which is not known until it is drawn.
+  # Without a class bar there is nothing to sit inside of, so the axis keeps
+  # them.
+  lab_in = !is.null(group_features_by) && feature_labels != "hide"
+  n_lab  = if(!lab_in) 0L else
+    as.integer(min(max(ceiling(max(nchar(feats), 1L) / 6), 1), 20))
+
   y_lv = c(rev(feat_disp), ".gapTop", ".ann")
   x_lv = if(is.null(group_features_by)) samp_disp
-         else c(".ann", ".gapLeft", samp_disp)
+         else c(".ann", if(n_lab) paste0(".lab", seq_len(n_lab)),
+                ".gapLeft", samp_disp)
 
   fac = function(v, lv) factor(v, levels = lv)
 
@@ -249,6 +263,17 @@ plotGroupHeatmap = function(de, color_samples_by,
                                  drop = FALSE)
   }
 
+  # Drawn at the left edge of the spacer column, running leftwards into the
+  # reserved columns, so the names end where the cells begin.
+  if(lab_in)
+    p = p + ggplot2::geom_text(
+      data = data.frame(sample  = fac(".gapLeft", x_lv),
+                        feature = fac(feats, y_lv),
+                        label   = feats, stringsAsFactors = FALSE),
+      ggplot2::aes(.data$sample, .data$feature, label = .data$label),
+      hjust = 1, nudge_x = -0.5, size = fs / ggplot2::.pt,
+      inherit.aes = FALSE)
+
   p +
     ggplot2::scale_x_discrete(labels = blank_dot, drop = FALSE) +
     ggplot2::scale_y_discrete(labels = blank_dot, drop = FALSE) +
@@ -259,8 +284,8 @@ plotGroupHeatmap = function(de, color_samples_by,
       axis.text.x = if(isTRUE(sample_labels))
         ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1, size = 6)
       else ggplot2::element_blank(),
-      axis.text.y = if(feature_labels == "hide") ggplot2::element_blank()
-                    else ggplot2::element_text(size = fs),
+      axis.text.y = if(feature_labels == "hide" || lab_in)
+        ggplot2::element_blank() else ggplot2::element_text(size = fs),
       axis.ticks  = ggplot2::element_blank(),
       axis.line   = ggplot2::element_blank())
 }

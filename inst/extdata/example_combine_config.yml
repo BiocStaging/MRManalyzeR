@@ -59,6 +59,9 @@ combine:
 
 # ========================= STATS REPORT ========================
 # Same schema as the standard MRManalyzeR stats_report block.
+# Every `enabled:` and `execute:` below is True | False. A key with a list of
+# values after `#` takes one of those; anything else is a column name, a number
+# or free text.
 stats_report:
   execute: True
   use_imputed: False                    # True = statistics on the merge of the
@@ -84,7 +87,7 @@ stats_report:
   # -- analysis-wide --
   global_summary_factor: "Treatment"    # Primary study factor
   p_adjust: BH                          # BH (=fdr) | bonferroni
-  sig_threshold: 0.05
+  sig_threshold: 0.05                   # alpha for the significance flags
 
   # -- comparisons  (method: is pre-specified per entry; see below) --
   comparisons:
@@ -103,21 +106,21 @@ stats_report:
     enabled: True
     components: [1, 2]                 # which two PCs
     label: none                        # none | all | outliers
-    label_factor: Sample_ID
+    label_factor: Sample_ID              # sample_metadata column for point labels
     ellipse: group                     # none | group
-    ellipse_confidence: 0.95
+    ellipse_confidence: 0.95             # 0-1
     loadings:
       enabled: True
       color_by: Primary                # feature_metadata column for bar fill
-    preprocess:
+    preprocess:                        # PCA only
       feat_na_max:   1                 # 1 = keep all (allow up to 100% NA)
       sample_na_max: 1                 # 1 = keep all
       impute:      gaussian            # gaussian | frac_min | min | half_min | none
       seed:        42                  # random draws for gaussian
-      impute_frac: 0.5
+      impute_frac: 0.5                   # ceiling = this x the feature's minimum
       transform:   log2                # none | log2 | sqrt
-      center:      True
-      scale:       True
+      center:      True                  # True | False
+      scale:       True                  # True | False - unit variance per feature
 
   # -- volcano  (per 2-group comparison / Tukey pair) --
   volcano:
@@ -132,14 +135,14 @@ stats_report:
     # -- shared render settings (inherited by general / top_changing / split_by_class) -- can override
     orientation:            samples_x    # samples_y | samples_x | auto
     color_samples_by:       Treatment    # sample annotation + 4.6 Global-tab ranking factor
-    group_features_by:      Primary
+    group_features_by:      Primary      # feature_metadata column
     transform:              log2         # none | log2 | sqrt
     scale:                  z            # z | none  (ignored when style is group_means)
     style:                  auto         # auto | samples | group_means
                                          #   auto -> group_means at 3+ groups, samples at 2
     alpha_floor:            0.6          # group_means only: opacity of a non-contributing sample
-    cluster_rows:           False
-    cluster_within_groups:  True
+    cluster_rows:           False        # True | False - cluster the feature axis
+    cluster_within_groups:  True         # True | False - cluster inside each block
     rank_by:                log2fc       # 4.6 comparison-tab ranking: p_adj | p_value | log2fc
     feature_labels:         small        # show | small | hide  (inherited default)
     cell_size:              auto         # auto | points (e.g. 10) - per-block overridable
@@ -152,7 +155,7 @@ stats_report:
     top_changing:                        # 4.6 — top-N changing features per class
       enabled: False
       scope:   comparisons               # global | comparisons | all
-      n_per_class: 10
+      n_per_class: 10                    # features kept per class
       feature_labels: show               # override (focused subset -> show names)
       cell_aspect: 1                     # few features -> keep cells square
 
