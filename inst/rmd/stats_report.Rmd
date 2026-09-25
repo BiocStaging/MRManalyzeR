@@ -23,6 +23,36 @@ library(tidyr)
 library(ggplot2)
 ```
 
+```{r report-logo, results="asis"}
+# Package logo, beside the report title. The title block is written by the
+# template before any chunk runs, so an <img> emitted here would land next to
+# section 1; a style rule reaches #header wherever it appears, and the image
+# rides along base64-encoded so the report stays one portable file.
+#
+# An installed package carries the logo at help/figures; a source tree
+# (devtools::load_all) still has it at man/figures, so both are tried. A
+# missing logo is skipped - a decoration must never stop a report.
+.logo_file = system.file("help", "figures", "logo.png",
+                          package = "MRManalyzeR")
+if(!nzchar(.logo_file))
+  .logo_file = system.file("man", "figures", "logo.png",
+                            package = "MRManalyzeR")
+if(nzchar(.logo_file))
+  cat(sprintf('<style>
+/* min-height keeps the 80px logo, anchored bottom-right, clear of the code
+   button above it however short the title block is. */
+#header { position: relative; min-height: 112px; }
+#header .title, #header .author, #header .date { padding-right: 100px; }
+#header::after {
+  content: ""; position: absolute; bottom: 0; right: 0;
+  width: 80px; height: 80px;
+  background: url("%s") no-repeat right bottom;
+  background-size: contain;
+}
+@media (max-width: 700px) { #header::after { display: none; } }
+</style>', knitr::image_uri(.logo_file)))
+```
+
 ```{r unpack-params}
 if(!exists("report_pars") || is.null(report_pars))
   report_pars = if(exists("mva_pars")) mva_pars else uva_pars
@@ -33,7 +63,9 @@ if(!exists("report_pars") || is.null(report_pars))
 # each plotting function, so a report is internally consistent by default.
 .cols = report_pars$colours %||% list()
 options(MRManalyzeR.palette   = .cols$qualitative %||% "hat",
-        MRManalyzeR.diverging = .cols$diverging   %||% "heatmap2")
+        MRManalyzeR.diverging = .cols$diverging   %||% "heatmap2",
+        # colours: levels: pins a class to one colour everywhere it appears.
+        MRManalyzeR.level_colours = .cols$levels %||% NULL)
 
 # -- Sample identification (shared across all sections) --
 # One column classifies every row; sample_labels names the value(s) marking

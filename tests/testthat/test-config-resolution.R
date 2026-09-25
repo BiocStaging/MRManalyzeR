@@ -102,6 +102,18 @@ test_that(".resolve_meta_col() finds columns mangled by make.names()", {
   expect_null(.resolve_meta_col("", df))
 })
 
+test_that("colours: levels: pins a class colour, whitespace aside", {
+  withr::local_options(list(MRManalyzeR.level_colours = list(
+    "COX" = "#B03A2E", "COX || CYP" = "#16A085")))
+  # The stored labels separate with non-breaking spaces; the config uses
+  # ordinary ones, and they must still match.
+  x <- c("COX", "LOX", "COX\u00a0||\u00a0CYP")
+  m <- .group_fill_colors(x)
+  expect_equal(unname(m["COX"]), "#B03A2E")
+  expect_equal(unname(m["COX\u00a0||\u00a0CYP"]), "#16A085")
+  expect_false(unname(m["LOX"]) %in% c("#B03A2E", "#16A085"))
+})
+
 test_that(".resolve_meta_col() finds a heading from its stored spelling", {
   df <- data.frame(`Chrom-Batch` = 1, check.names = FALSE)
   expect_equal(.resolve_meta_col("Chrom.Batch", df), "Chrom-Batch")

@@ -4,6 +4,11 @@ project: &general
 
   # See inst/extdata/example_combine_config.yml for the merge-multiple-
   # acquisitions workflow (runMRManalyzeRCombine()).
+  #
+  # Every `enabled:` and `execute:` below is True | False. A key with a list of
+  # values after `#` takes one of those; anything else is a column name in the
+  # metadata sheets, a number, or free text. An absent key means the step is
+  # off, except where a default is stated.
 
   # ============================= PATHS =============================
   paths:
@@ -126,10 +131,10 @@ project: &general
     adjust_conc:
       enabled: False                      # on/off
       starting_vol_col: False             # False to skip this step | column of pre-dry-down volume
-      sample_vol_col:   "sample_volume_uL"
-      cal_vol_col:      "cal_vol_uL"
-      sample_IS_col:    "sample_IS_vol_uL"
-      cal_IS_col:       "cal_IS_vol_uL"
+      sample_vol_col:   "sample_volume_uL"  # sample_metadata columns holding the
+      cal_vol_col:      "cal_vol_uL"        #   vial volume and the internal-standard
+      sample_IS_col:    "sample_IS_vol_uL"  #   volume, for the sample and for the
+      cal_IS_col:       "cal_IS_vol_uL"     #   calibrant
 
     # 8. Missing-value imputation  (last)
     replace_MVs: 0.2                      # False | fraction of the per-feature minimum
@@ -155,6 +160,12 @@ project: &general
 
     # -- colours (shared by every plot in this report) --
     colours:
+      # levels: pin a class to one colour wherever it is drawn - heatmap
+      #   annotation, PCA loadings, correlation blocks. Unlisted levels
+      #   take the palette below.
+      # levels:
+      #   COX: "#B03A2E"
+      #   LOX: "#CA6F1E"
       qualitative: hat                    # hat | reading | heatmap0 - group / class colours
                                           # hat order: blue, red, green, yellow, purple,
                                           # teal, crimson, light green, orange, grey
@@ -176,10 +187,10 @@ project: &general
                                           # plots; default = qc_label + sample_labels
 
     # -- intensity vs injection order (drift) --
-    plot_intensity_per_compound: True
+    plot_intensity_per_compound: True     # True | False
 
     # -- Q-Q normality (same subset as drift) --
-    plot_qq_per_compound: True
+    plot_qq_per_compound: True            # True | False
     qq_transform: [none, log2, sqrt]      # none | log2 | sqrt (one tab each)
 
     # -- QC PCA  (one per color_by factor) --
@@ -187,7 +198,7 @@ project: &general
       enabled: True
       color_by: [Injection_order, Chrom_Batch, Sample_type]  # one PCA each
       label:   none                       # none | all | outliers
-      label_factor: Sample_ID
+      label_factor: Sample_ID             # sample_metadata column for point labels
       ellipse: none                       # none | group
       preprocess:                         # PCA only
         feat_na_max:   0.6                # drop features >60% missing
@@ -195,10 +206,10 @@ project: &general
         impute:      gaussian             # gaussian | frac_min | min | half_min | none
                                           # fills what replace_MVs left missing
         seed:        42                   # random draws for gaussian
-        impute_frac: 0.2
-        transform:   log2
-        center:      True
-        scale:       True
+        impute_frac: 0.2                  # ceiling = this x the feature's minimum
+        transform:   log2                 # none | log2 | sqrt
+        center:      True                 # True | False
+        scale:       True                 # True | False - unit variance per feature
 
   # ========================= STATS REPORT ========================
   stats_report:
@@ -209,6 +220,12 @@ project: &general
 
     # -- colours (shared by every plot in this report) --
     colours:
+      # levels: pin a class to one colour wherever it is drawn - heatmap
+      #   annotation, PCA loadings, correlation blocks. Unlisted levels
+      #   take the palette below.
+      # levels:
+      #   COX: "#B03A2E"
+      #   LOX: "#CA6F1E"
       qualitative: hat                    # hat | reading | heatmap0 - group / class colours
                                           # hat order: blue, red, green, yellow, purple,
                                           # teal, crimson, light green, orange, grey
@@ -230,7 +247,7 @@ project: &general
     # -- analysis-wide --
     global_summary_factor: "Treatment"    # Primary study factor
     p_adjust: BH                          # BH (=fdr) | bonferroni
-    sig_threshold: 0.05
+    sig_threshold: 0.05                   # alpha for the significance flags
 
     # -- comparisons  (method: is pre-specified per entry; see below) --
     comparisons:
@@ -254,7 +271,7 @@ project: &general
     # -- boxplot  (per-compound by factor(s)) --
     boxplot:
       enabled: True
-      factors: [Treatment, Type]
+      factors: [Treatment, Type]          # sample_metadata columns, one tab each
       display: tabs                       # combined | tabs
       plot_type: both                     # box | bar | both
       error_bar: SD                       # SD | SE | none
@@ -265,9 +282,9 @@ project: &general
       enabled: True
       components: [1, 2]                 # which two PCs
       label: none                        # none | all | outliers
-      label_factor: Sample_ID
+      label_factor: Sample_ID            # sample_metadata column for point labels
       ellipse: group                     # none | group
-      ellipse_confidence: 0.95
+      ellipse_confidence: 0.95           # 0-1
       loadings:
         enabled:  True
         color_by: Enzymatic_pathway      # feature_metadata column for bar fill
@@ -277,10 +294,10 @@ project: &general
         impute:      gaussian            # gaussian | frac_min | min | half_min | none
                                          # fills what replace_MVs left missing
         seed:        42                  # random draws for gaussian
-        impute_frac: 0.2
+        impute_frac: 0.2                 # ceiling = this x the feature's minimum
         transform:   log2                # none | log2 | sqrt
-        center:      True
-        scale:       True
+        center:      True                # True | False
+        scale:       True                # True | False - unit variance per feature
 
     # -- volcano  (per 2-group comparison / Tukey pair) --
     volcano:
@@ -295,16 +312,19 @@ project: &general
       # -- shared render settings (inherited by general / top_changing / split_by_class) -- can override
       orientation:            samples_x    # samples_y | samples_x | auto
       color_samples_by:       Treatment    # sample annotation + 4.6 Global-tab ranking factor
-      group_features_by:      Enzymatic_pathway
+      group_features_by:      Enzymatic_pathway   # feature_metadata column
       transform:              log2         # none | log2 | sqrt
       scale:                  z            # z | none  (ignored when style is group_means)
       style:                  auto         # auto | samples | group_means
                                            #   auto -> group_means at 3+ groups, samples at 2
       alpha_floor:            0.6          # group_means only: opacity of a non-contributing sample
-      cluster_rows:           False
-      cluster_within_groups:  True
+      cluster_rows:           False        # True | False - cluster the feature axis
+      cluster_within_groups:  True         # True | False - cluster inside each block,
+                                           #   so the blocks stay together
       rank_by:                log2fc       # 4.6 comparison-tab ranking: p_adj | p_value | log2fc
       feature_labels:         hide         # show | small | hide  (inherited default)
+                                           #   under group_means the names are drawn
+                                           #   between the class bar and the cells
       cell_size:              auto         # auto | points (e.g. 10) - per-block overridable
       cell_aspect:            1.5          # max cell width:height when cell_size is auto (1 = square)
 
@@ -316,7 +336,7 @@ project: &general
       top_changing:                        # 4.6 — top-N changing features per class
         enabled: True
         scope:   all                       # global | comparisons | all
-        n_per_class: 5
+        n_per_class: 5                     # features kept per class
         # rank_by: p_value                 # optional override of the root rank_by
         feature_labels: show               # override (focused subset -> show names)
         cell_aspect: 1                     # few features -> keep cells square

@@ -40,7 +40,10 @@ saturate and the rest get the full range.}
 \item{alpha_floor}{Opacity given to a sample that did not contribute to its
 group's mean. Below about 0.4 those cells read as missing data.}
 
-\item{feature_labels}{`"show"`, `"small"` or `"hide"`.}
+\item{feature_labels}{`"show"`, `"small"` or `"hide"`. With
+`group_features_by` set, the names are drawn between the class colour bar
+and the cells - block, then names, then data, which is how a pathway
+figure is read. Without it they sit on the axis as usual.}
 
 \item{sample_labels}{Draw the sample axis. `FALSE` for wide cohorts, where
 the samples stay individually visible but not individually named.}

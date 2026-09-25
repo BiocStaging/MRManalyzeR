@@ -12,6 +12,33 @@
   subsetDataset(de, conditions = list(Sample_type = "Sample"))
 }
 
+test_that("blocked compounds put their names between the bar and the cells", {
+  de <- .de_for_heatmap()
+  p  <- plotGroupHeatmap(de, color_samples_by = "Treatment",
+                         group_features_by = "Enzymatic_pathway")
+  expect_s3_class(p, "ggplot")
+  # The names are a text layer now, and the axis text is blank.
+  expect_true(any(vapply(p$layers,
+                         function(l) inherits(l$geom, "GeomText"), logical(1))))
+  expect_s3_class(p$theme$axis.text.y, "element_blank")
+  # The columns reserved for them sit between the annotation bar and the cells.
+  lv <- levels(p$layers[[1]]$data$sample)
+  expect_true(all(c(".ann", ".lab1", ".gapLeft") %in% lv))
+  expect_lt(match(".ann", lv), match(".lab1", lv))
+  expect_lt(max(grep("^\\.lab", lv)), match(".gapLeft", lv))
+
+  # Without a class column there is nowhere to put them: back to the axis.
+  q <- plotGroupHeatmap(de, color_samples_by = "Treatment")
+  expect_false(inherits(q$theme$axis.text.y, "element_blank"))
+
+  # hide still drops them entirely.
+  r <- plotGroupHeatmap(de, color_samples_by = "Treatment",
+                        group_features_by = "Enzymatic_pathway",
+                        feature_labels = "hide")
+  expect_false(any(vapply(r$layers,
+                          function(l) inherits(l$geom, "GeomText"), logical(1))))
+})
+
 test_that("returns a ggplot and honours the blocking arguments", {
   de <- .de_for_heatmap()
 
