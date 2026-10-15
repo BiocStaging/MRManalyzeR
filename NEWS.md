@@ -2,7 +2,7 @@
 
 Changes from the Bioconductor review.
 
-* Five functions take an `mrm` prefix, because their old names were also
+* Seven functions take an `mrm` prefix, because their old names were also
   exported by packages a reader might have attached: `runPCA()`,
   `plotPCA()` and `plotHeatmap()` become `mrmRunPCA()`, `mrmPlotPCA()` and
   `mrmPlotHeatmap()` (`scater`); `runExample()` becomes `mrmRunExample()`
