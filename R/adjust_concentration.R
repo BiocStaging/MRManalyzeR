@@ -41,44 +41,45 @@
 #'                              row.names = c("PGE2", "PGD2")))
 #' adjustConcentration(de)$data
 #' @export
-adjustConcentration = function(de,
+adjustConcentration <- function(de,
                                 sample_vol_col   = "sample_volume_uL",
                                 cal_vol_col      = "cal_vol_uL",
                                 sample_IS_col    = "sample_IS_vol_uL",
                                 cal_IS_col       = "cal_IS_vol_uL",
                                 starting_vol_col = FALSE){
+  .check_de(de, "adjustConcentration")
 
-  smeta = as.data.frame(de$sample_meta)
-  req   = c(sample_vol_col, cal_vol_col, sample_IS_col, cal_IS_col)
-  miss  = setdiff(req, colnames(smeta))
+  smeta <- as.data.frame(de$sample_meta)
+  req  <- c(sample_vol_col, cal_vol_col, sample_IS_col, cal_IS_col)
+  miss <- setdiff(req, colnames(smeta))
   if(length(miss))
     stop(sprintf(
       "[adjustConcentration] sample_meta is missing required column(s): %s",
       paste(miss, collapse = ", ")))
 
-  fact = (smeta[[cal_vol_col]]   / smeta[[sample_vol_col]]) *
+  fact <- (smeta[[cal_vol_col]]   / smeta[[sample_vol_col]]) *
          (smeta[[sample_IS_col]] / smeta[[cal_IS_col]])
 
-  n_missing = sum(is.na(fact))
+  n_missing <- sum(is.na(fact))
   if(n_missing)
     message(sprintf(
       "[adjustConcentration] %d sample(s) have missing volume/IS metadata and will be NA: %s",
       n_missing, paste(head(rownames(smeta)[is.na(fact)], 5), collapse = ", ")))
 
-  x = as.data.frame(de$data) * fact
+  x <- as.data.frame(de$data) * fact
 
   if(!isFALSE(starting_vol_col)){
     if(!starting_vol_col %in% colnames(smeta))
       stop(sprintf("[adjustConcentration] sample_meta has no '%s' column.",
                    starting_vol_col))
-    sv_fact = smeta[[sample_vol_col]] / smeta[[starting_vol_col]]
+    sv_fact <- smeta[[sample_vol_col]] / smeta[[starting_vol_col]]
     if(sum(is.na(sv_fact)))
       message(sprintf(
         "[adjustConcentration] %d sample(s) have missing %s/%s and will be NA.",
         sum(is.na(sv_fact)), sample_vol_col, starting_vol_col))
-    x = x * sv_fact
+    x <- x * sv_fact
   }
 
-  de$data = x
+  de$data <- x
   de
 }

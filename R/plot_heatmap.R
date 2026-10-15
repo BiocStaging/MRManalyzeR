@@ -55,12 +55,12 @@
 #' de <- loadDataset(system.file("extdata", "example_synthetic.RDS",
 #'                                package = "MRManalyzeR"))
 #' de <- subsetDataset(de, conditions = list(Sample_type = "Sample"))
-#' plotHeatmap(de, color_samples_by = "Treatment",
+#' mrmPlotHeatmap(de, color_samples_by = "Treatment",
 #'              group_features_by = "Enzymatic_pathway",
 #'              title = "All features")
 #' @family stats
 #' @export
-plotHeatmap = function(de, features = NULL, title = NULL,
+mrmPlotHeatmap <- function(de, features = NULL, title = NULL,
                         color_samples_by,
                         group_features_by     = NULL,
                         transform             = c("none", "log2", "sqrt"),
@@ -73,120 +73,121 @@ plotHeatmap = function(de, features = NULL, title = NULL,
                         sample_id_head        = NULL,
                         cap                   = 2.5,
                         cell_size             = 10){
+  .check_de(de, "mrmPlotHeatmap")
 
-  transform      = match.arg(transform)
-  scale          = match.arg(scale)
-  orientation    = match.arg(orientation)
-  feature_labels = match.arg(feature_labels)
+  transform     <- match.arg(transform)
+  scale         <- match.arg(scale)
+  orientation   <- match.arg(orientation)
+  feature_labels <- match.arg(feature_labels)
 
   if(!requireNamespace("pheatmap", quietly = TRUE)){
-    warning("[plotHeatmap] pheatmap is not installed.")
+    warning("[mrmPlotHeatmap] pheatmap is not installed.")
     return(NULL)
   }
 
-  smeta = as.data.frame(de$sample_meta)
-  vmeta = as.data.frame(de$variable_meta)
-  M     = as.matrix(as.data.frame(de$data))
-  if(!is.null(features)) M = M[, intersect(features, colnames(M)),
+  smeta <- as.data.frame(de$sample_meta)
+  vmeta <- as.data.frame(de$variable_meta)
+  M    <- as.matrix(as.data.frame(de$data))
+  if(!is.null(features)) M <- M[, intersect(features, colnames(M)),
                                drop = FALSE]
 
   if(nrow(M) < 3 || ncol(M) < 2) return(NULL)
-  color_samples_by = .resolve_meta_col(color_samples_by, smeta) %||%
-    stop(sprintf("[plotHeatmap] '%s' is not a sample_meta column. Present: %s.",
+  color_samples_by <- .resolve_meta_col(color_samples_by, smeta) %||%
+    stop(sprintf("[mrmPlotHeatmap] '%s' is not a sample_meta column. Present: %s.",
                  color_samples_by, paste(colnames(smeta), collapse = ", ")))
-  group_features_by = .resolve_meta_col(group_features_by, vmeta)
-  sample_id_head    = .resolve_meta_col(sample_id_head, smeta)
+  group_features_by <- .resolve_meta_col(group_features_by, vmeta)
+  sample_id_head   <- .resolve_meta_col(sample_id_head, smeta)
 
   if(!is.null(sample_id_head))
-    rownames(M) = as.character(smeta[[sample_id_head]])
+    rownames(M) <- as.character(smeta[[sample_id_head]])
 
   if(transform == "log2"){
-    M[M < 0 & !is.na(M)] = 0; M = log2(M + 1)
+    M[M < 0 & !is.na(M)] <- 0; M <- log2(M + 1)
   } else if(transform == "sqrt"){
-    M[M < 0 & !is.na(M)] = 0; M = sqrt(M)
+    M[M < 0 & !is.na(M)] <- 0; M <- sqrt(M)
   }
 
-  vars = apply(M, 2, stats::var, na.rm = TRUE)
-  M    = M[, is.finite(vars) & vars > 0, drop = FALSE]
+  vars <- apply(M, 2, stats::var, na.rm = TRUE)
+  M   <- M[, is.finite(vars) & vars > 0, drop = FALSE]
   if(ncol(M) == 0) return(NULL)
 
-  if(scale == "z") M = scale(M, center = TRUE, scale = TRUE)
-  M[M >  cap] =  cap
-  M[M < -cap] = -cap
+  if(scale == "z") M <- scale(M, center = TRUE, scale = TRUE)
+  M[M >  cap] <-  cap
+  M[M < -cap] <- -cap
 
-  ann_row = data.frame(row.names = rownames(M))
-  ann_row[[color_samples_by]] = smeta[[color_samples_by]]
+  ann_row <- data.frame(row.names = rownames(M))
+  ann_row[[color_samples_by]] <- smeta[[color_samples_by]]
 
-  ann_col = NULL; gaps_col = NULL
+  ann_col <- NULL; gaps_col <- NULL
   if(!is.null(group_features_by)){
-    feats = colnames(M)
-    g = as.character(vmeta[[group_features_by]][match(feats,
+    feats <- colnames(M)
+    g <- as.character(vmeta[[group_features_by]][match(feats,
                                                       vmeta$Compound)])
-    g[is.na(g)] = "NA"
-    levels_in_order = unique(g)
+    g[is.na(g)] <- "NA"
+    levels_in_order <- unique(g)
 
-    ordered = unlist(lapply(levels_in_order, function(k){
-      in_k = feats[g == k]
+    ordered <- unlist(lapply(levels_in_order, function(k){
+      in_k <- feats[g == k]
       if(isTRUE(cluster_within_groups) && length(in_k) > 1){
-        Mk = M[, in_k, drop = FALSE]
-        Mk[is.na(Mk)] = 0
-        d = stats::dist(t(Mk))
+        Mk <- M[, in_k, drop = FALSE]
+        Mk[is.na(Mk)] <- 0
+        d <- stats::dist(t(Mk))
         if(all(is.finite(d)))
-          in_k = in_k[stats::hclust(d, method = "average")$order]
+          in_k <- in_k[stats::hclust(d, method = "average")$order]
       }
       in_k
     }), use.names = FALSE)
 
-    M = M[, ordered, drop = FALSE]
-    g2 = as.character(vmeta[[group_features_by]][match(ordered,
+    M <- M[, ordered, drop = FALSE]
+    g2 <- as.character(vmeta[[group_features_by]][match(ordered,
                                                        vmeta$Compound)])
-    g2[is.na(g2)] = "NA"
-    ann_col = data.frame(row.names = ordered)
-    ann_col[[group_features_by]] = factor(g2, levels = levels_in_order)
-    gaps_col = utils::head(cumsum(rle(g2)$lengths), -1)
+    g2[is.na(g2)] <- "NA"
+    ann_col <- data.frame(row.names = ordered)
+    ann_col[[group_features_by]] <- factor(g2, levels = levels_in_order)
+    gaps_col <- utils::head(cumsum(rle(g2)$lengths), -1)
   }
 
-  ord = order(as.character(ann_row[[color_samples_by]]))
-  M       = M[ord, , drop = FALSE]
-  ann_row = ann_row[ord, , drop = FALSE]
-  gaps_row = utils::head(
+  ord <- order(as.character(ann_row[[color_samples_by]]))
+  M      <- M[ord, , drop = FALSE]
+  ann_row <- ann_row[ord, , drop = FALSE]
+  gaps_row <- utils::head(
     cumsum(rle(as.character(ann_row[[color_samples_by]]))$lengths), -1)
 
-  ann_colors = c(.ann_colours(ann_row), .ann_colours(ann_col))
+  ann_colors <- c(.ann_colours(ann_row), .ann_colours(ann_col))
 
   # Samples are clustered on a copy with gaps at the compound mean, so a gap
   # cannot break the clustering; in the picture itself gaps stay grey.
-  hc = FALSE
+  hc <- FALSE
   if(isTRUE(cluster_rows) && nrow(M) > 1){
-    M_fill = M
-    M_fill[is.na(M_fill)] = 0
-    hc = stats::hclust(stats::dist(M_fill), method = "complete")
+    M_fill <- M
+    M_fill[is.na(M_fill)] <- 0
+    hc <- stats::hclust(stats::dist(M_fill), method = "complete")
   }
 
-  flip = identical(orientation, "samples_x") ||
+  flip <- identical(orientation, "samples_x") ||
     (identical(orientation, "auto") && nrow(M) > ncol(M))
 
   if(flip){
-    M_use = t(M)
-    ann_row_use = ann_col;  ann_col_use = ann_row
-    gaps_row_use = gaps_col; gaps_col_use = gaps_row
-    cluster_rows_use = FALSE; cluster_cols_use = hc
+    M_use <- t(M)
+    ann_row_use <- ann_col;  ann_col_use <- ann_row
+    gaps_row_use <- gaps_col; gaps_col_use <- gaps_row
+    cluster_rows_use <- FALSE; cluster_cols_use <- hc
   } else {
-    M_use = M
-    ann_row_use = ann_row;  ann_col_use = ann_col
-    gaps_row_use = gaps_row; gaps_col_use = gaps_col
-    cluster_rows_use = hc; cluster_cols_use = FALSE
+    M_use <- M
+    ann_row_use <- ann_row;  ann_col_use <- ann_col
+    gaps_row_use <- gaps_row; gaps_col_use <- gaps_col
+    cluster_rows_use <- hc; cluster_cols_use <- FALSE
   }
 
-  feat_fs   = switch(feature_labels, show = 9, small = 4, 4)
-  feat_show = feature_labels != "hide"
+  feat_fs  <- switch(feature_labels, show = 9, small = 4, 4)
+  feat_show <- feature_labels != "hide"
   if(flip){   # features on rows, samples on columns
-    show_rn = feat_show; fs_row = feat_fs; show_cn = TRUE;      fs_col = 9
+    show_rn <- feat_show; fs_row <- feat_fs; show_cn <- TRUE;      fs_col <- 9
   } else {    # features on columns, samples on rows
-    show_cn = feat_show; fs_col = feat_fs; show_rn = TRUE;      fs_row = 9
+    show_cn <- feat_show; fs_col <- feat_fs; show_rn <- TRUE;      fs_row <- 9
   }
 
-  ph = pheatmap::pheatmap(
+  ph <- pheatmap::pheatmap(
     M_use,
     cluster_rows      = cluster_rows_use,
     cluster_cols      = cluster_cols_use,
@@ -233,9 +234,9 @@ plotHeatmap = function(de, features = NULL, title = NULL,
 #' @return A finite numeric, or `NA`.
 #' @keywords internal
 #' @noRd
-.cell_dim = function(x){
+.cell_dim <- function(x){
   if(is.null(x) || length(x) == 0) return(NA)
-  x = suppressWarnings(as.numeric(x[1]))
+  x <- suppressWarnings(as.numeric(x[1]))
   if(!is.finite(x) || x <= 0) return(NA)
   x
 }

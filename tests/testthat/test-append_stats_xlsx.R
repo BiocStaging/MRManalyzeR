@@ -1,5 +1,5 @@
 test_that(".stats_key_df() is well formed", {
-  key = .stats_key_df()
+  key <- .stats_key_df()
 
   expect_named(key, c("Sheet", "Column", "Meaning"))
   expect_gt(nrow(key), 30)
@@ -15,7 +15,7 @@ test_that(".stats_key_df() is well formed", {
 # and a column written but never defined.
 test_that(".stats_key_df() matches the schemas runStats() returns", {
 
-  schemas = list(
+  schemas <- list(
     stats         = names(.empty_stats_df()),
     correlations  = names(.empty_corr_df()),
     linear_models = names(.empty_lm_df()),
@@ -24,11 +24,11 @@ test_that(".stats_key_df() matches the schemas runStats() returns", {
                       "p_value", "p_adj"),
     summary       = c("Compound", "group", "n", "mean", "sd", "se"))
 
-  key     = .stats_key_df()
-  generic = key$Column[key$Sheet == "(all sheets)"]
+  key    <- .stats_key_df()
+  generic <- key$Column[key$Sheet == "(all sheets)"]
 
   for(sheet in names(schemas)){
-    defined = key$Column[key$Sheet == sheet]
+    defined <- key$Column[key$Sheet == sheet]
 
     # No phantom definitions.
     expect_equal(setdiff(defined, schemas[[sheet]]), character(0))
@@ -41,13 +41,13 @@ test_that(".stats_key_df() matches the schemas runStats() returns", {
 test_that("the key sheet is written first and covers only the sheets present", {
   skip_if_not_installed("openxlsx")
 
-  wb = openxlsx::createWorkbook()
+  wb <- openxlsx::createWorkbook()
   openxlsx::addWorksheet(wb, "stats")
   openxlsx::writeData(wb, "stats", .empty_stats_df())
 
   .write_key_sheet(wb)
 
-  tmp = tempfile(fileext = ".xlsx")
+  tmp <- tempfile(fileext = ".xlsx")
   openxlsx::saveWorkbook(wb, tmp, overwrite = TRUE)
   on.exit(unlink(tmp), add = TRUE)
 
@@ -56,7 +56,7 @@ test_that("the key sheet is written first and covers only the sheets present", {
   # back from the file - which is the thing that matters anyway.
   expect_equal(openxlsx::getSheetNames(tmp)[1], "key")
 
-  got = openxlsx::read.xlsx(tmp, sheet = "key")
+  got <- openxlsx::read.xlsx(tmp, sheet = "key")
   expect_true(all(c("stats", "(all sheets)") %in% got$Sheet))
   # correlations was never written, so its definitions must not appear.
   expect_false("correlations" %in% got$Sheet)
@@ -65,7 +65,7 @@ test_that("the key sheet is written first and covers only the sheets present", {
 test_that("append_stats_xlsx() skips empty tables but still writes the key", {
   skip_if_not_installed("openxlsx")
 
-  tmp = tempfile(fileext = ".xlsx")
+  tmp <- tempfile(fileext = ".xlsx")
   on.exit(unlink(tmp), add = TRUE)
 
   append_stats_xlsx(tmp, list(stats         = .empty_stats_df(),
@@ -75,7 +75,7 @@ test_that("append_stats_xlsx() skips empty tables but still writes the key", {
                                                n = 3L, mean = 1, sd = 0.1,
                                                se = 0.06))
 
-  sh = openxlsx::sheets(openxlsx::loadWorkbook(tmp))
+  sh <- openxlsx::sheets(openxlsx::loadWorkbook(tmp))
   expect_equal(sh[1], "key")
   expect_true("summary" %in% sh)
   # Zero-row inputs produce no headers-only tabs.

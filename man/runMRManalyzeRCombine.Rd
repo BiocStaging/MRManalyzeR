@@ -93,7 +93,8 @@ runMRManalyzeRCombine(yml)
 }
 \seealso{
 Other entry points:
-\code{\link[=runExample]{runExample()}},
+\code{\link[=mrmRunExample]{mrmRunExample()}},
+\code{\link[=newConfig]{newConfig()}},
 \code{\link[=runMRManalyzeR]{runMRManalyzeR()}}
 }
 \concept{entry points}

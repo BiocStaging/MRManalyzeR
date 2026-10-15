@@ -6,9 +6,9 @@
 ^\.claude$
 ^LICENSE\.md$
 ^MRManalyzeR\.BiocCheck$
+^temp_res$
 ^doc$
 ^Meta$
-^data-raw$
 ^docs$
 ^pkgdown$
 ^_pkgdown\.yml$

@@ -68,13 +68,14 @@ Backwards compatibility:
 }
 }
 \examples{
-# runExample() writes a config for the bundled dataset and drives
+# mrmRunExample() writes a config for the bundled dataset and drives
 # runMRManalyzeR(); render = FALSE keeps it to the peak-matrix build.
-runExample(render = FALSE, open = FALSE)
+mrmRunExample(render = FALSE, open = FALSE)
 }
 \seealso{
 Other entry points:
-\code{\link[=runExample]{runExample()}},
+\code{\link[=mrmRunExample]{mrmRunExample()}},
+\code{\link[=newConfig]{newConfig()}},
 \code{\link[=runMRManalyzeRCombine]{runMRManalyzeRCombine()}}
 }
 \concept{entry points}

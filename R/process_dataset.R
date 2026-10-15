@@ -126,7 +126,10 @@
 #'   was excluded. Default `"Comment"`.
 #' @return A named list with `dataset` (the `DatasetExperiment`, imputed when
 #'   `replace_MVs` is set), `excluded_features` (a data frame of features
-#'   dropped along the way, with the reason recorded) and `measured` (the same
+#'   dropped along the way, with `Failed_step` naming the step that took each
+#'   one - `User exclude`, `Detection filter`, `Signal filter (...)`,
+#'   `Never measured`, `Not in source data` or `No metadata entry` - and the
+#'   reason recorded) and `measured` (the same
 #'   dataset before imputation, gaps included; identical to `dataset` when
 #'   nothing was imputed). The first two stay in that order, so existing code
 #'   indexing `[[1]]` and `[[2]]` keeps working.
@@ -143,7 +146,7 @@
 #' @family peak-matrix processing
 #' @seealso [runMRManalyzeR()] to drive the whole workflow from a YAML config.
 #' @export
-processDataset = function(fdata,
+processDataset <- function(fdata,
                               metadata,
                               xlsx_path = NULL,
                               data_source = "targetlynx",
@@ -197,14 +200,14 @@ processDataset = function(fdata,
   # (Compound / Processing_name / Report=YES|NO / Comment) so the rest of the
   # package - engine, reports, subsetDataset, combine - keeps using fixed names
   # regardless of what the input sheet calls them.
-  fdata$Processing_name = fdata[[processing_name_col]]
-  fdata$Compound        = fdata[[compound_col]]
+  fdata$Processing_name <- fdata[[processing_name_col]]
+  fdata$Compound       <- fdata[[compound_col]]
 
   # Report is an inclusion filter, not measured data. A feature table curated
   # outside a TargetLynx workflow - the usual case for data_source = "matrix" -
   # carries no such column, and the only reading of "no exclusion information"
   # is that every feature is reported. Said out loud rather than assumed.
-  fdata$Report = if(report_col %in% colnames(fdata)){
+  fdata$Report <- if(report_col %in% colnames(fdata)){
     ifelse(as.character(fdata[[report_col]]) == as.character(report_value),
            "YES", "NO")
   } else {
@@ -214,17 +217,21 @@ processDataset = function(fdata,
     rep("YES", nrow(fdata))
   }
 
-  if(comment_col %in% colnames(fdata)) fdata$Comment = fdata[[comment_col]]
+  if(comment_col %in% colnames(fdata)) fdata$Comment <- fdata[[comment_col]]
+
+  # Which compounds the curator had already excluded, before this run marks
+  # any of its own. Kept so the removed list can say who decided.
+  user_excluded <- fdata$Compound[fdata$Report == "NO"]
 
   if(!data_source %in% c("targetlynx", "skyline", "matrix"))
     stop("[processDataset] data_source must be 'targetlynx', 'skyline' or 'matrix'.")
   # Checked now rather than when imputation is reached, at the end of the run.
-  impute_method = match.arg(impute_method, c("gaussian", "constant"))
+  impute_method <- match.arg(impute_method, c("gaussian", "constant"))
 
   # Backwards compatibility: YAMLs that only set `snr:` (no `signal_filter:`)
   # keep working unchanged - infer the filter mode from `snr`.
   if(is.null(signal_filter))
-    signal_filter = if(isFALSE(snr)) FALSE else "SNR"
+    signal_filter <- if(isFALSE(snr)) FALSE else "SNR"
 
   if(!identical(signal_filter, FALSE) && !signal_filter %in% c("SNR", "LOD", "LOQ"))
     stop("[processDataset] signal_filter must be one of: 'SNR', 'LOD', 'LOQ', FALSE.")
@@ -249,11 +256,11 @@ processDataset = function(fdata,
   # than a whole processing run. The header is matched as typed or in the
   # make.names() form assembleDataset() stores it under - correctBatch()
   # accepts both, so this check has to as well.
-  bc_on = isTRUE(batch_correction) || is.character(batch_correction)
+  bc_on <- isTRUE(batch_correction) || is.character(batch_correction)
   if(is.character(batch_correction)){
-    bc_col = NA_character_
+    bc_col <- NA_character_
     if(length(batch_correction) == 1L)
-      bc_col = if(batch_correction %in% colnames(fdata)) batch_correction else
+      bc_col <- if(batch_correction %in% colnames(fdata)) batch_correction else
         colnames(fdata)[match(make.names(batch_correction),
                               make.names(colnames(fdata)))]
     if(is.na(bc_col))
@@ -269,7 +276,7 @@ processDataset = function(fdata,
   # Only complain about a column the run will actually consult: warning that
   # blank_head is missing when blank_filter is off is noise, and noise is what
   # makes the real warnings easy to skip past.
-  needed_heads = c(if(bc_on) c(bc_factor_name, bc_header),
+  needed_heads <- c(if(bc_on) c(bc_factor_name, bc_header),
                    if(!isFALSE(blank_filter) &&
                       !is.null(blank_filter)) blank_head)
   for(h in unique(needed_heads)){
@@ -278,14 +285,14 @@ processDataset = function(fdata,
   }
 
   # --- Whitelists ----------------------------------------------------------
-  fnames = fdata$Processing_name[fdata$Report == "YES"]
-  snames = metadata[[name_col]][which(metadata[[include_col]] == include_value)]
+  fnames <- fdata$Processing_name[fdata$Report == "YES"]
+  snames <- metadata[[name_col]][which(metadata[[include_col]] == include_value)]
 
   # --- Sheets -------------------------------------------------------------
   # NULL means each reader's usual sheets. TargetLynx keeps NULL, which
   # extractTable() reads as every sheet whose name contains "lcms_data".
   if(is.null(data_tab_names) && !identical(data_source, "targetlynx"))
-    data_tab_names = if(identical(data_source, "skyline"))
+    data_tab_names <- if(identical(data_source, "skyline"))
       "skyline_data" else "matrix_data"
 
   # --- Read raw matrix (format-specific) + apply signal filter ------------
@@ -294,14 +301,14 @@ processDataset = function(fdata,
     # readTargetLynx() reads + pivots + (optionally) SNR-masks the full sheet;
     # restrict to reportable compounds (fnames) and included samples (snames)
     # here, exactly as the old pre-pivot filter did.
-    snr_use = if(identical(signal_filter, "SNR")) snr else FALSE
-    tl = .read_targetlynx(xlsx_path, datatype = datatype,
+    snr_use <- if(identical(signal_filter, "SNR")) snr else FALSE
+    tl <- .read_targetlynx(xlsx_path, datatype = datatype,
                           tl_headers = tl_headers, snr = snr_use,
                           data_tab_names = data_tab_names)
-    keep_r    = rownames(tl$masked) %in% snames
-    keep_c    = colnames(tl$masked) %in% fnames
-    out_table = tl$masked[keep_r, keep_c, drop = FALSE]
-    raw_table = tl$raw[keep_r, keep_c, drop = FALSE]
+    keep_r   <- rownames(tl$masked) %in% snames
+    keep_c   <- colnames(tl$masked) %in% fnames
+    out_table <- tl$masked[keep_r, keep_c, drop = FALSE]
+    raw_table <- tl$raw[keep_r, keep_c, drop = FALSE]
 
   } else if(identical(data_source, "skyline")){
 
@@ -309,32 +316,32 @@ processDataset = function(fdata,
       stop("[processDataset] xlsx_path is required when data_source='skyline'.")
 
     # readSkyline()'s two steps, split so the unmasked matrix is kept too.
-    raw_table = .read_skyline_matrix(xlsx_path, data_tab_names, fdata)
-    out_table = raw_table
+    raw_table <- .read_skyline_matrix(xlsx_path, data_tab_names, fdata)
+    out_table <- raw_table
     if(signal_filter %in% c("LOD", "LOQ"))
-      out_table = .apply_lod_loq_mask(raw_table, fdata,
+      out_table <- .apply_lod_loq_mask(raw_table, fdata,
                                       floor_col = signal_filter)
-    keep_r    = rownames(out_table) %in% snames
-    out_table = out_table[keep_r, , drop = FALSE]
-    raw_table = raw_table[keep_r, , drop = FALSE]
+    keep_r   <- rownames(out_table) %in% snames
+    out_table <- out_table[keep_r, , drop = FALSE]
+    raw_table <- raw_table[keep_r, , drop = FALSE]
 
   } else {   # data_source == "matrix"
 
     if(is.null(xlsx_path))
       stop("[processDataset] xlsx_path is required when data_source='matrix'.")
 
-    raw_table = readPeakMatrix(xlsx_path, data_tab_names,
+    raw_table <- readPeakMatrix(xlsx_path, data_tab_names,
                                  id_col      = matrix_id_col,
                                  orientation = matrix_orientation)
     # A generic matrix carries no S/N, but it may still have a per-compound
     # LOD/LOQ in feature_metadata, so the same mask applies.
-    out_table = raw_table
+    out_table <- raw_table
     if(signal_filter %in% c("LOD", "LOQ"))
-      out_table = .apply_lod_loq_mask(out_table, fdata,
+      out_table <- .apply_lod_loq_mask(out_table, fdata,
                                       floor_col = signal_filter)
-    keep_r    = rownames(out_table) %in% snames
-    out_table = out_table[keep_r, , drop = FALSE]
-    raw_table = raw_table[keep_r, , drop = FALSE]
+    keep_r   <- rownames(out_table) %in% snames
+    out_table <- out_table[keep_r, , drop = FALSE]
+    raw_table <- raw_table[keep_r, , drop = FALSE]
   }
 
   # --- Zeros are non-detects ---------------------------------------------
@@ -342,15 +349,15 @@ processDataset = function(fdata,
   # measured, rather than zero. Set to NA before any step counts it, so the
   # detection filters see it as missing and an unimputed matrix shows a gap.
   # raw_table too, so an all-zero compound is recorded as never measured.
-  out_table[!is.na(out_table) & out_table == 0] = NA
-  raw_table[!is.na(raw_table) & raw_table == 0] = NA
+  out_table[!is.na(out_table) & out_table == 0] <- NA
+  raw_table[!is.na(raw_table) & raw_table == 0] <- NA
 
   # --- Mismatch diagnostics ----------------------------------------------
   # Track features that exist in fdata$Processing_name but have no row in
   # the source data (compound never reported for any sample, regardless of
   # data_source). Tracked here so they can be surfaced in the QC report and
   # the console.
-  missing_in_data = setdiff(fnames, colnames(out_table))
+  missing_in_data <- setdiff(fnames, colnames(out_table))
   if(length(missing_in_data)){
     message(sprintf(
       "[processDataset] %d feature(s) in fdata$Processing_name have no rows in the source data:\n  %s",
@@ -365,41 +372,41 @@ processDataset = function(fdata,
   # colnames disagree with rowData rownames). For data_source="skyline",
   # this is also where unmatched Molecule names (e.g. internal standards
   # with no feature_metadata row) get caught.
-  orig_names  = colnames(out_table)
-  name_lookup = stats::setNames(fdata$Compound, fdata$Processing_name)
-  new_names   = name_lookup[orig_names]
-  unmapped    = is.na(new_names)
-  unmapped_ids = orig_names[unmapped]   # surfaced in QC report
+  orig_names <- colnames(out_table)
+  name_lookup <- stats::setNames(fdata$Compound, fdata$Processing_name)
+  new_names  <- name_lookup[orig_names]
+  unmapped   <- is.na(new_names)
+  unmapped_ids <- orig_names[unmapped]   # surfaced in QC report
   if(length(unmapped_ids)){
     message(sprintf(
       "[processDataset] %d source column(s) have no matching fdata$Processing_name and were dropped:\n  %s",
       length(unmapped_ids),
       paste(unmapped_ids, collapse = ", ")))
-    out_table = out_table[, !unmapped, drop = FALSE]
-    new_names = new_names[!unmapped]
+    out_table <- out_table[, !unmapped, drop = FALSE]
+    new_names <- new_names[!unmapped]
   }
-  colnames(out_table) = new_names
+  colnames(out_table) <- new_names
 
   # Drop all-NA features (vectorized via colSums)
-  keep_col = colSums(!is.na(out_table)) > 0
-  remove_feats = names(out_table)[!keep_col]
+  keep_col <- colSums(!is.na(out_table)) > 0
+  remove_feats <- names(out_table)[!keep_col]
   # Was each feature measured at all in the included samples, before any
   # signal filter masked it? Separates "never measured" from "filtered out"
   # in the reason recorded below. raw_table has out_table's rows and columns.
-  had_value = stats::setNames(
+  had_value <- stats::setNames(
     colSums(!is.na(raw_table[, orig_names[!unmapped], drop = FALSE])) > 0,
     colnames(out_table))
-  out_table    = out_table[, keep_col, drop = FALSE]
+  out_table   <- out_table[, keep_col, drop = FALSE]
 
   # --- Per-batch processing ----------------------------------------------
-  meta_yes = metadata[which(metadata[[include_col]] == include_value), , drop = FALSE]
+  meta_yes <- metadata[which(metadata[[include_col]] == include_value), , drop = FALSE]
 
   # `bc_header` names the batch-correction column, but historically it also
   # silently partitioned every processing step. Those are different questions,
   # so `processing_batch` now asks the second one explicitly - defaulting to
   # bc_header, which preserves the previous behaviour.
-  asked_for  = !is.null(processing_batch)
-  proc_batch = if(asked_for) processing_batch else bc_header
+  asked_for <- !is.null(processing_batch)
+  proc_batch <- if(asked_for) processing_batch else bc_header
 
   if(!isFALSE(proc_batch) && !is.null(proc_batch) &&
      is.null(.resolve_meta_col(proc_batch, meta_yes))){
@@ -416,9 +423,9 @@ processDataset = function(fdata,
     warning(sprintf(
       "processing_batch defaulted to bc_header='%s', which is not a sample_metadata column; processing every sample together. Set processing_batch explicitly to silence this.",
       proc_batch), call. = FALSE)
-    proc_batch = FALSE
+    proc_batch <- FALSE
   }
-  if(is.null(proc_batch)) proc_batch = FALSE
+  if(is.null(proc_batch)) proc_batch <- FALSE
 
   # The correction column is only needed if correction is actually requested.
   if(bc_on &&
@@ -438,30 +445,30 @@ processDataset = function(fdata,
       "[processDataset] Empty matrix after reading (%d samples x %d features). Check: processing_batch column, blank/signal filters, and that the source data actually contains data for the included samples.",
       nrow(out_table), ncol(out_table)))
   }
-  lcms_experiment = assembleDataset(out_table, fdata, metadata, name_col = name_col)
+  lcms_experiment <- assembleDataset(out_table, fdata, metadata, name_col = name_col)
 
   # assembleDataset() stores headings in make.names() form (Chrom-Batch ->
   # Chrom.Batch), so look the processing-batch column up under that name.
   if(!isFALSE(proc_batch)){
-    smeta_st   = as.data.frame(lcms_experiment$sample_meta)
-    proc_batch = .resolve_meta_col(proc_batch, smeta_st) %||% proc_batch
+    smeta_st  <- as.data.frame(lcms_experiment$sample_meta)
+    proc_batch <- .resolve_meta_col(proc_batch, smeta_st) %||% proc_batch
   }
 
   # Treat NA / "" bc_header values (e.g. blanks, QCs that weren't
   # cryosectioned) as a single "_unbatched_" group so they survive the
   # per-batch split instead of being silently dropped via `NA == "x"`.
   # Computed locally: the dataset's own sample_meta keeps the original values.
-  bc_vec = if(isFALSE(proc_batch))
+  bc_vec <- if(isFALSE(proc_batch))
     rep("_all_", nrow(as.data.frame(lcms_experiment$data))) else
     as.character(as.data.frame(lcms_experiment$sample_meta)[[proc_batch]])
-  bc_vec[is.na(bc_vec) | !nzchar(trimws(bc_vec))] = "_unbatched_"
-  batches = unique(bc_vec)
+  bc_vec[is.na(bc_vec) | !nzchar(trimws(bc_vec))] <- "_unbatched_"
+  batches <- unique(bc_vec)
 
   # --- pass 1: blank filter, per batch ----------------------------------
   # Blank thresholds are a property of a batch, so this stays per-batch. It
   # only masks values, never removes a row or column, so the rebind below is
   # safe.
-  lcms_experiment = .run_per_batch(
+  lcms_experiment <- .run_per_batch(
     lcms_experiment, bc_vec, batches,
     function(d) if(isFALSE(blank_filter) || is.null(blank_filter)) d else
       filterBlanks(d, blank_filter = blank_filter,
@@ -474,9 +481,10 @@ processDataset = function(fdata,
   # because it needs the NA pattern intact - imputation below destroys it.
   # Features first, then samples: judging an injection against a feature list
   # still padded with undetected features gives a meaningless denominator.
+  feats_before_filter <- colnames(as.data.frame(lcms_experiment$data))
   if(!isFALSE(filter_features)){
-    ff = as.list(filter_features)
-    lcms_experiment = filterFeatures(
+    ff <- as.list(filter_features)
+    lcms_experiment <- filterFeatures(
       lcms_experiment,
       min_frac      = ff$min_frac      %||% 0.5,
       method        = ff$method        %||% "within",
@@ -486,13 +494,16 @@ processDataset = function(fdata,
       qc_label      = ff$qc_label      %||% "QC")
   }
   if(!isFALSE(filter_samples)){
-    fs = as.list(filter_samples)
-    lcms_experiment = filterSamples(
+    fs <- as.list(filter_samples)
+    lcms_experiment <- filterSamples(
       lcms_experiment,
       max_na        = fs$max_na        %||% 0.8,
       sample_col    = fs$sample_col    %||% "Sample_type",
       sample_labels = fs$sample_labels %||% "Sample")
   }
+
+  dropped_detection <- setdiff(feats_before_filter,
+                               colnames(as.data.frame(lcms_experiment$data)))
 
   # --- batch correction, GLOBAL ------------------------------------------
   # Straight after the filters, on the instrument signal: a batch effect is a
@@ -501,7 +512,7 @@ processDataset = function(fdata,
   # imputation too, so a batch median describes what was measured rather than
   # values imputation filled in.
   if(bc_on)
-    lcms_experiment = correctBatch(
+    lcms_experiment <- correctBatch(
       lcms_experiment,
       qc_label     = bc_qc_label,
       check_factor = bc_check_factor,
@@ -511,7 +522,7 @@ processDataset = function(fdata,
 
   # --- normalise / concentration adjustment --------------------------------
   # Per-sample divisors and factors, so no batch split is needed.
-  lcms_experiment = .scale_samples(
+  lcms_experiment <- .scale_samples(
     lcms_experiment,
     normalize        = normalize,
     adjust_conc      = adjust_conc,
@@ -524,9 +535,30 @@ processDataset = function(fdata,
   # --- imputation, per processing batch, LAST ------------------------------
   # Last, because it destroys the missingness every step above relies on. The
   # dataset as measured is kept as well: the reports use it by default.
-  measured = lcms_experiment
+  measured <- lcms_experiment
+
+  # The floor each compound was actually seen at in the study samples,
+  # recorded before imputation invents anything below it. QCs and blanks are
+  # not study material and do not set the floor. Written to both copies so
+  # the sheet and the reports agree whichever they were given.
+  .ff_lab <- if(!isFALSE(filter_features) && !is.null(filter_features))
+    as.list(filter_features) else list()
+  lowest <- .lowest_measured(
+    measured,
+    sample_col    = .ff_lab$sample_col    %||% blank_head %||% "Sample_type",
+    sample_labels = .ff_lab$sample_labels %||% "Sample",
+    exclude       = c(blank_name, bc_qc_label, .ff_lab$qc_label))
+  add_lowest <- function(d){
+    vm <- as.data.frame(d$variable_meta)
+    vm$Lowest_measured <- unname(lowest[rownames(vm)])
+    d$variable_meta <- .cols_after(vm, "Lowest_measured")
+    d
+  }
+  measured <- add_lowest(measured)
+  lcms_experiment <- add_lowest(lcms_experiment)
+
   if(!isFALSE(replace_MVs) && !is.null(replace_MVs))
-    lcms_experiment = imputeMissing(
+    lcms_experiment <- imputeMissing(
       lcms_experiment, scalar = replace_MVs,
       blank_head = blank_head, blank_name = blank_name,
       method = impute_method, seed = impute_seed,
@@ -535,38 +567,71 @@ processDataset = function(fdata,
   # --- Record removed features -------------------------------------------
   # Two different reasons: nothing was measured in the included samples, or
   # something was and the signal filter removed all of it.
-  never_seen = remove_feats[!had_value[remove_feats] %in% TRUE]
-  filtered   = setdiff(remove_feats, never_seen)
-  fdata$Report [fdata$Compound %in% remove_feats] = "NO"
-  fdata$Comment[fdata$Compound %in% never_seen] =
+  never_seen <- remove_feats[!had_value[remove_feats] %in% TRUE]
+  filtered  <- setdiff(remove_feats, never_seen)
+  fdata$Report [fdata$Compound %in% remove_feats] <- "NO"
+  fdata$Comment[fdata$Compound %in% never_seen] <-
     "No values in the included samples"
   if(length(filtered))
-    fdata$Comment[fdata$Compound %in% filtered] =
+    fdata$Comment[fdata$Compound %in% filtered] <-
       sprintf("All values below %s threshold", signal_filter)
 
   # Flag features whose Processing_name appears in fdata but has no rows
   # in the source data (compound never reported for any sample).
   if(length(missing_in_data)){
-    miss_row = fdata$Processing_name %in% missing_in_data
-    fdata$Report [miss_row] = "NO"
-    fdata$Comment[miss_row] = "No matching data in source file"
+    miss_row <- fdata$Processing_name %in% missing_in_data
+    fdata$Report [miss_row] <- "NO"
+    fdata$Comment[miss_row] <- "No matching data in source file"
   }
-  removed_features = dplyr::filter(fdata, Report == "NO")
+  # Compounds the detection filter took were not recorded anywhere before:
+  # they left the matrix without leaving a row behind.
+  if(length(dropped_detection)){
+    fdata$Report [fdata$Compound %in% dropped_detection] <- "NO"
+    fdata$Comment[fdata$Compound %in% dropped_detection] <-
+      "Detected in too few samples"
+  }
+
+  removed_features <- dplyr::filter(fdata, Report == "NO")
+
+  # Which step took it. Earliest decision wins: a compound the curator
+  # excluded never reached the filters, whatever else is true of it.
+  {
+    step <- rep(NA_character_, nrow(removed_features))
+    cmp  <- as.character(removed_features$Compound)
+    mark <- function(step, hit, label){
+      step[is.na(step) & hit] <- label
+      step
+    }
+    step <- mark(step, cmp %in% user_excluded,     "User exclude")
+    step <- mark(step, cmp %in% dropped_detection, "Detection filter")
+    step <- mark(step, cmp %in% never_seen,        "Never measured")
+    step <- mark(step, cmp %in% filtered,
+                 sprintf("Signal filter (%s)",
+                         if(isFALSE(signal_filter)) "none" else signal_filter))
+    if(length(missing_in_data))
+      step <- mark(step,
+                   as.character(removed_features$Processing_name) %in%
+                     missing_in_data, "Not in source data")
+    step[is.na(step)] <- "Not reported"
+    removed_features$Failed_step <- step
+    removed_features <- .cols_after(removed_features, "Failed_step")
+  }
 
   # Append unmapped source columns (no fdata entry at all) so the QC report
   # also surfaces those - fdata has no row for them, so we add stub rows.
   if(length(unmapped_ids)){
-    extra = data.frame(
-      Compound = unmapped_ids,
-      Report   = "NO",
-      Comment  = "No matching Processing_name in feature_metadata",
+    extra <- data.frame(
+      Compound    = unmapped_ids,
+      Failed_step = "No metadata entry",
+      Report      = "NO",
+      Comment     = "No matching Processing_name in feature_metadata",
       stringsAsFactors = FALSE
     )
     # pad to the same columns as removed_features
-    miss_cols = setdiff(colnames(removed_features), colnames(extra))
-    for(m in miss_cols) extra[[m]] = NA
-    extra = extra[, colnames(removed_features), drop = FALSE]
-    removed_features = rbind(removed_features, extra)
+    miss_cols <- setdiff(colnames(removed_features), colnames(extra))
+    for(m in miss_cols) extra[[m]] <- NA
+    extra <- extra[, colnames(removed_features), drop = FALSE]
+    removed_features <- rbind(removed_features, extra)
   }
 
   # Console summary banner so mismatches are impossible to miss
@@ -588,11 +653,11 @@ processDataset = function(fdata,
 #' Pivot the long TargetLynx table to a wide sample x compound matrix
 #' @keywords internal
 #' @noRd
-.build_wide_matrix = function(base, datatype){
-  base %>%
-    dplyr::select(ID, Name, dplyr::all_of(datatype)) %>%
-    dplyr::distinct() %>%
-    dplyr::mutate(dplyr::across(dplyr::all_of(datatype), as.numeric)) %>%
+.build_wide_matrix <- function(base, datatype){
+  base |>
+    dplyr::select(ID, Name, dplyr::all_of(datatype)) |>
+    dplyr::distinct() |>
+    dplyr::mutate(dplyr::across(dplyr::all_of(datatype), as.numeric)) |>
     # values_fill = NA, not 0. A sample x compound pair with no row in the
     # export was not measured as zero - it was not reported at all, whether
     # because the transition was not acquired, the peak was not integrated, or
@@ -602,24 +667,24 @@ processDataset = function(fdata,
     # adjustment, which all run before any imputation step.
     tidyr::pivot_wider(names_from = "ID",
                        values_from = dplyr::all_of(datatype),
-                       id_cols = "Name", values_fill = NA_real_) %>%
+                       id_cols = "Name", values_fill = NA_real_) |>
     tibble::column_to_rownames("Name")
 }
 
 #' Apply an S/N threshold mask to a wide matrix
 #' @keywords internal
 #' @noRd
-.apply_snr_mask = function(out_table, base, snr){
-  snr_table = base %>%
-    dplyr::select(ID, Name, `S/N`) %>%
-    dplyr::distinct() %>%
-    dplyr::mutate(`S/N` = suppressWarnings(as.numeric(`S/N`))) %>%
+.apply_snr_mask <- function(out_table, base, snr){
+  snr_table <- base |>
+    dplyr::select(ID, Name, `S/N`) |>
+    dplyr::distinct() |>
+    dplyr::mutate(`S/N` = suppressWarnings(as.numeric(`S/N`))) |>
     tidyr::pivot_wider(names_from = "ID", values_from = "S/N",
-                       id_cols = "Name") %>%
+                       id_cols = "Name") |>
     tibble::column_to_rownames("Name")
 
-  snr_table = snr_table[rownames(out_table), colnames(out_table), drop = FALSE]
-  out_table[snr_table < snr] = NA
+  snr_table <- snr_table[rownames(out_table), colnames(out_table), drop = FALSE]
+  out_table[snr_table < snr] <- NA
   out_table
 }
 
@@ -633,17 +698,17 @@ processDataset = function(fdata,
 #' (divisors, volumes) straight from `sample_meta`.
 #' @keywords internal
 #' @noRd
-.scale_samples = function(de, normalize, adjust_conc, starting_vol_col,
+.scale_samples <- function(de, normalize, adjust_conc, starting_vol_col,
                           sample_vol_col, cal_vol_col,
                           sample_IS_col, cal_IS_col){
 
   if(!isFALSE(normalize) && !is.null(normalize))
-    de = normaliseMatrix(de, column = normalize)
+    de <- normaliseMatrix(de, column = normalize)
 
   # Vial-level concentration correction (+ optional starting-volume
   # correction) -- see adjustConcentration.R.
   if(isTRUE(adjust_conc))
-    de = adjustConcentration(de,
+    de <- adjustConcentration(de,
                               sample_vol_col   = sample_vol_col,
                               cal_vol_col      = cal_vol_col,
                               sample_IS_col    = sample_IS_col,
@@ -660,20 +725,20 @@ processDataset = function(fdata,
 #' rebound on a common column set. Single-batch datasets skip the split.
 #' @keywords internal
 #' @noRd
-.run_per_batch = function(de, bc_vec, batches, fn){
+.run_per_batch <- function(de, bc_vec, batches, fn){
   if(length(batches) <= 1L) return(fn(de))
-  row_order = rownames(as.data.frame(de$data))
-  frames = lapply(batches, function(b)
+  row_order <- rownames(as.data.frame(de$data))
+  frames <- lapply(batches, function(b)
     as.data.frame(fn(.de_rows(de, which(bc_vec == b)))$data))
-  merged = do.call(rbind, frames)
-  de$data = merged[row_order, , drop = FALSE]
+  merged <- do.call(rbind, frames)
+  de$data <- merged[row_order, , drop = FALSE]
   de
 }
 
 #' Subset a DatasetExperiment to the given sample rows, keeping all features
 #' @keywords internal
 #' @noRd
-.de_rows = function(de, idx){
+.de_rows <- function(de, idx){
   struct::DatasetExperiment(
     data          = as.data.frame(de$data)[idx, , drop = FALSE],
     sample_meta   = as.data.frame(de$sample_meta)[idx, , drop = FALSE],

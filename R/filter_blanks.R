@@ -42,30 +42,31 @@
 #' out$data
 #' as.data.frame(out$variable_meta)[, c("blank_threshold", "n_masked_blank")]
 #' @export
-filterBlanks = function(de, blank_filter, blank_head = "Sample_type",
+filterBlanks <- function(de, blank_filter, blank_head = "Sample_type",
                          blank_name = "Blank",
                          summary = c("mean", "median"),
                          min_blanks = 2,
                          missing_blanks = c("warn", "error", "skip")){
+  .check_de(de, "filterBlanks")
 
-  summary        = match.arg(summary)
-  missing_blanks = match.arg(missing_blanks)
+  summary       <- match.arg(summary)
+  missing_blanks <- match.arg(missing_blanks)
 
-  df    = as.data.frame(de$data)
-  smeta = as.data.frame(de$sample_meta)
-  vm    = as.data.frame(de$variable_meta)
-  blank_head = .resolve_meta_col(blank_head, smeta) %||% blank_head
+  df   <- as.data.frame(de$data)
+  smeta <- as.data.frame(de$sample_meta)
+  vm   <- as.data.frame(de$variable_meta)
+  blank_head <- .resolve_meta_col(blank_head, smeta) %||% blank_head
 
   if(!blank_head %in% colnames(smeta))
     stop(sprintf("[filterBlanks] '%s' is not a sample_meta column.",
                  blank_head))
 
-  blank_samples = rownames(smeta)[smeta[[blank_head]] %in% blank_name]
-  df_blank      = df[rownames(df) %in% blank_samples, , drop = FALSE]
-  n_blank       = nrow(df_blank)
+  blank_samples <- rownames(smeta)[smeta[[blank_head]] %in% blank_name]
+  df_blank     <- df[rownames(df) %in% blank_samples, , drop = FALSE]
+  n_blank      <- nrow(df_blank)
 
   if(n_blank < min_blanks){
-    msg = sprintf(
+    msg <- sprintf(
       "[filterBlanks] found %d blank injection(s) (%s in {%s}); %d required.",
       n_blank, blank_head, paste(blank_name, collapse = ", "), min_blanks)
     if(missing_blanks == "error") stop(msg)
@@ -76,31 +77,33 @@ filterBlanks = function(de, blank_filter, blank_head = "Sample_type",
     warning(msg, " Filtering anyway - thresholds rest on very few values.")
   }
 
-  fun = if(summary == "median")
+  fun <- if(summary == "median")
     function(x) stats::median(x, na.rm = TRUE) else
     function(x) mean(x, na.rm = TRUE)
 
-  blank_thresh = if(n_blank == 0)
+  blank_thresh <- if(n_blank == 0)
     stats::setNames(rep(NA_real_, ncol(df)), colnames(df)) else
     vapply(df_blank, fun, numeric(1)) * blank_filter
 
   # Features with no usable blank measurement give NA/NaN and are left alone:
   # no threshold is better than a threshold of zero, which would mask nothing,
   # or of NA, which would mask everything.
-  masked = stats::setNames(integer(ncol(df)), colnames(df))
+  masked <- stats::setNames(integer(ncol(df)), colnames(df))
   for(j in which(is.finite(blank_thresh))){
-    col       = df[[j]]
-    hit       = !is.na(col) & col < blank_thresh[j]
-    masked[j] = sum(hit)
-    col[hit]  = NA
-    df[[j]]   = col
+    col      <- df[[j]]
+    hit      <- !is.na(col) & col < blank_thresh[j]
+    masked[j] <- sum(hit)
+    col[hit] <- NA
+    df[[j]]  <- col
   }
 
-  key = rownames(vm)
-  vm$blank_threshold = unname(blank_thresh[key])
-  vm$n_masked_blank  = unname(masked[key])
+  .warn_overwrite(vm, c("blank_threshold", "n_masked_blank"),
+                  "filterBlanks")
+  key <- rownames(vm)
+  vm$blank_threshold <- unname(blank_thresh[key])
+  vm$n_masked_blank <- unname(masked[key])
 
-  de$data          = df
-  de$variable_meta = vm
+  de$data         <- df
+  de$variable_meta <- vm
   de
 }

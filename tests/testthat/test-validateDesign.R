@@ -25,24 +25,24 @@ ghost_cfg <- function(execute) {
              compare = list(factor = "Group", levels = c("x", "y"))))))))
 }
 
-test_that("validateDesign skips comparisons when execute is False", {
-  v <- validateDesign(mk_design_de(), ghost_cfg(FALSE))
+test_that("mrmValidateDesign skips comparisons when execute is False", {
+  v <- mrmValidateDesign(mk_design_de(), ghost_cfg(FALSE))
   expect_false(any(grepl("not present in 'Group'", v$errors)))
 })
 
-test_that("validateDesign still checks them when the report runs", {
-  v <- validateDesign(mk_design_de(), ghost_cfg(TRUE))
+test_that("mrmValidateDesign still checks them when the report runs", {
+  v <- mrmValidateDesign(mk_design_de(), ghost_cfg(TRUE))
   expect_true(any(grepl("not present in 'Group'", v$errors)))
 })
 
-test_that("validateConfig skips comparisons when execute is False", {
+test_that("mrmValidateConfig skips comparisons when execute is False", {
   cfg <- ghost_cfg(FALSE)
   # anova is not a valid method for a 2-level comparison
   cfg$project$stats_report$comparisons$entries[[1]]$method <- "anova"
-  expect_length(validateConfig(cfg)$errors, 0)
+  expect_length(mrmValidateConfig(cfg)$errors, 0)
 
   cfg$project$stats_report$execute <- TRUE
-  expect_true(any(grepl("not valid for 2 level", validateConfig(cfg)$errors)))
+  expect_true(any(grepl("not valid for 2 level", mrmValidateConfig(cfg)$errors)))
 })
 
 test_that("a comparison switched off with enabled: False is left out", {
@@ -54,7 +54,7 @@ test_that("a comparison switched off with enabled: False is left out", {
 
   cfg <- ghost_cfg(TRUE)
   cfg$project$stats_report$comparisons$entries[[1]]$enabled <- FALSE
-  v <- validateDesign(mk_design_de(), cfg)
+  v <- mrmValidateDesign(mk_design_de(), cfg)
   expect_false(any(grepl("not present in 'Group'", v$errors)))
 })
 
@@ -62,13 +62,13 @@ test_that("a config needs only the data-source block it uses", {
   # No skyline_data: or matrix_data: block at all - absent means off.
   cfg <- list(project = list(
     PeakMatrixProcessing = list(tl_data = list(enabled = TRUE))))
-  expect_length(validateConfig(cfg)$errors, 0)
+  expect_length(mrmValidateConfig(cfg)$errors, 0)
 
   cfg$project$PeakMatrixProcessing$skyline_data <- list(enabled = TRUE)
-  expect_match(validateConfig(cfg)$errors, "exactly one", all = FALSE)
+  expect_match(mrmValidateConfig(cfg)$errors, "exactly one", all = FALSE)
 })
 
-test_that("validateDesign does not count an empty batch label as a batch", {
+test_that("mrmValidateDesign does not count an empty batch label as a batch", {
   ids <- paste0("S", 1:6)
   de <- struct::DatasetExperiment(
     data = data.frame(f1 = c(1, 2, 3, 4, 5, 6), row.names = ids),
@@ -77,6 +77,6 @@ test_that("validateDesign does not count an empty batch label as a batch", {
       Chrom_Batch = c("b1", "b1", "b1", "b2", "b2", NA),
       row.names = ids),
     variable_meta = data.frame(Compound = "f1", row.names = "f1"))
-  v <- validateDesign(de)
+  v <- mrmValidateDesign(de)
   expect_false(any(grepl("'NA'", v$warnings)))
 })

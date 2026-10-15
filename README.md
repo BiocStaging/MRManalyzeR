@@ -50,11 +50,22 @@ the metadata schema is configurable for other laboratories.
 
 ## Installation
 
-### Bioconductor dependency (do this first)
+### From Bioconductor
 
-MRManalyzeR depends on `struct`, which is distributed through Bioconductor
-rather than CRAN, so install it with `BiocManager` before installing
-MRManalyzeR from GitHub:
+```r
+if(!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install("MRManalyzeR")
+```
+
+That brings in `struct`, which MRManalyzeR is built on, along with the rest
+of the dependencies. For the development version of Bioconductor, use
+`BiocManager::install(version = "devel")` first.
+
+### From GitHub
+
+The GitHub copy tracks work in progress between Bioconductor releases. It
+still needs `struct` from Bioconductor:
 
 ```r
 if(!requireNamespace("BiocManager", quietly = TRUE))
@@ -92,13 +103,13 @@ Run the workflow against a small bundled oxylipin dataset to verify the
 install and produce both reports. No paths to configure:
 
 ```r
-res <- MRManalyzeR::runExample()
+res <- MRManalyzeR::mrmRunExample()
 res$output_directory   # where the xlsx + html reports were written
 res$datasetExperiment  # the processed dataset
 res$stats_tables       # comparisons, correlations, linear models
 ```
 
-`runExample()` copies the bundled YAML, points it at
+`mrmRunExample()` copies the bundled YAML, points it at
 `inst/extdata/example_data.xlsx` and a fresh `tempdir()`, runs
 `runMRManalyzeR()`, and (in interactive sessions) opens the rendered
 HTML reports in the RStudio viewer / default browser.
@@ -150,8 +161,8 @@ de <- normaliseMatrix(de, column = "protein_mg")
 de <- imputeMissing(de, scalar = 0.2)
 
 qc  <- addCVMetrics(de)
-pca <- runPCA(de, transform = "log2", scale = TRUE)
-plotPCA(pca, de, colour_by = "Treatment")
+pca <- mrmRunPCA(de, transform = "log2", scale = TRUE)
+mrmPlotPCA(pca, de, colour_by = "Treatment")
 ```
 
 See `vignette("MRManalyzeR")` for the full walkthrough, and `?MRManalyzeR`

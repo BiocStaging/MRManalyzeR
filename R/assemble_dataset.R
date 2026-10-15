@@ -22,20 +22,46 @@
 #' assembleDataset(m, fm, sm)
 #' @family data parse
 #' @export
-assembleDataset = function(x, feature_meta, sample_meta, name_col = "Name"){
+assembleDataset <- function(x, feature_meta, sample_meta, name_col = "Name"){
+
+  # Check what was handed over before using it: the failures otherwise surface
+  # deep inside dplyr, naming a column the caller never mentioned.
+  if(!is.data.frame(x) && !is.matrix(x))
+    stop(sprintf(
+      "[assembleDataset] `x` must be a matrix or data frame of samples x compounds, not %s.",
+      paste(class(x), collapse = "/")), call. = FALSE)
+  if(is.null(rownames(x)) || is.null(colnames(x)))
+    stop("[assembleDataset] `x` needs row names (injections) and column names (compounds).",
+         call. = FALSE)
+  for(.a in c("feature_meta", "sample_meta")){
+    .v <- get(.a)
+    if(!is.data.frame(.v))
+      stop(sprintf("[assembleDataset] `%s` must be a data frame, not %s.",
+                   .a, paste(class(.v), collapse = "/")), call. = FALSE)
+  }
+  .need <- function(df, cols, what){
+    miss <- setdiff(cols, colnames(df))
+    if(length(miss))
+      stop(sprintf("[assembleDataset] %s is missing column(s): %s. Present: %s.",
+                   what, paste(miss, collapse = ", "),
+                   paste(colnames(df), collapse = ", ")), call. = FALSE)
+  }
+  .need(feature_meta, c("Compound", "Report"), "feature_meta")
+  .need(sample_meta,  name_col,               "sample_meta")
+
   # Feature side: keep only feature_meta rows whose Compound is in the matrix,
   # in matrix-column order, so variable_meta rownames match assay colnames.
-  fdata_output = feature_meta %>%
-    dplyr::filter(Report == "YES", Compound %in% colnames(x)) %>%
+  fdata_output <- feature_meta |>
+    dplyr::filter(Report == "YES", Compound %in% colnames(x)) |>
     dplyr::arrange(match(Compound, colnames(x)))
-  rownames(fdata_output) = fdata_output$Compound
+  rownames(fdata_output) <- fdata_output$Compound
 
   # Sample side: intersect first so dropped samples (blank filter, etc.)
   # don't get reintroduced as all-NA rows.
-  metadata_ar = sample_meta[sample_meta[[name_col]] %in% rownames(x), , drop = FALSE]
-  metadata_ar = metadata_ar[order(metadata_ar[[name_col]]), , drop = FALSE]
-  rownames(metadata_ar) = metadata_ar[[name_col]]
-  out_matrix_ar = x[metadata_ar[[name_col]], fdata_output$Compound, drop = FALSE]
+  metadata_ar <- sample_meta[sample_meta[[name_col]] %in% rownames(x), , drop = FALSE]
+  metadata_ar <- metadata_ar[order(metadata_ar[[name_col]]), , drop = FALSE]
+  rownames(metadata_ar) <- metadata_ar[[name_col]]
+  out_matrix_ar <- x[metadata_ar[[name_col]], fdata_output$Compound, drop = FALSE]
 
   # struct::DatasetExperiment runs make.names() over the metadata it stores, so
   # a heading like `S-group` becomes `S.group`. Said out loud because the
@@ -55,10 +81,10 @@ assembleDataset = function(x, feature_meta, sample_meta, name_col = "Name"){
 #' Announce columns whose names will not survive storage
 #' @keywords internal
 #' @noRd
-.report_renamed = function(df, what){
-  from = colnames(df)
-  to   = make.names(from, unique = TRUE)
-  chg  = from != to
+.report_renamed <- function(df, what){
+  from <- colnames(df)
+  to  <- make.names(from, unique = TRUE)
+  chg <- from != to
   if(any(chg))
     message(sprintf(
       "[assembleDataset] %s column(s) renamed for storage: %s. Use the new name in the config.",

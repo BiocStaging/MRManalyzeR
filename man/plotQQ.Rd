@@ -57,10 +57,10 @@ plotQQ(de, "Analyte_02", transform = "log2", levels = "Sample")
 \seealso{
 Other QC check:
 \code{\link[=addCVMetrics]{addCVMetrics()}},
+\code{\link[=mrmPlotPCA]{mrmPlotPCA()}},
+\code{\link[=mrmRunPCA]{mrmRunPCA()}},
 \code{\link[=plotDrift]{plotDrift()}},
 \code{\link[=plotLoadings]{plotLoadings()}},
-\code{\link[=plotPCA]{plotPCA()}},
-\code{\link[=runPCA]{runPCA()}},
 \code{\link[=summariseFeatures]{summariseFeatures()}}
 }
 \concept{QC check}

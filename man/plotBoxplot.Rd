@@ -78,9 +78,9 @@ plotBoxplot(de, "Analyte_02", "Treatment", type = "bar",
 [summariseGroups()] for the numbers the bars are drawn from.
 
 Other stats:
+\code{\link[=mrmPlotHeatmap]{mrmPlotHeatmap()}},
 \code{\link[=plotCorrelation]{plotCorrelation()}},
 \code{\link[=plotGroupHeatmap]{plotGroupHeatmap()}},
-\code{\link[=plotHeatmap]{plotHeatmap()}},
 \code{\link[=plotVolcano]{plotVolcano()}},
 \code{\link[=runStats]{runStats()}},
 \code{\link[=summariseGroups]{summariseGroups()}}

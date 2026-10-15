@@ -11,6 +11,7 @@ plotGroupHeatmap(
   group_features_by = NULL,
   transform = c("none", "log2", "sqrt"),
   cap = NULL,
+  group_scale = c("shared", "feature"),
   alpha_floor = 0.6,
   feature_labels = c("show", "small", "hide"),
   sample_labels = TRUE,
@@ -23,7 +24,7 @@ plotGroupHeatmap(
 
 \item{color_samples_by}{`sample_meta` column defining the groups to average
 within, and the annotation bar along the top. Named to match
-[plotHeatmap()], where it does the annotation half of the same job.}
+[mrmPlotHeatmap()], where it does the annotation half of the same job.}
 
 \item{features}{Compounds to include; `NULL` uses all of them.}
 
@@ -35,7 +36,13 @@ Negative values are floored at 0 first.}
 
 \item{cap}{Colour limit, in standard deviations of the group means. `NULL`
 takes the 97th percentile of `abs()` of the group means, so a few cells
-saturate and the rest get the full range.}
+saturate and the rest get the full range. Ignored when `group_scale` is
+`"feature"`.}
+
+\item{group_scale}{`"shared"` (default) draws every compound on one colour
+limit, so compounds can be compared with each other. `"feature"` gives
+each compound its own limit, so each row fills the colour range and only
+the shape along the groups can be read.}
 
 \item{alpha_floor}{Opacity given to a sample that did not contribute to its
 group's mean. Below about 0.4 those cells read as missing data.}
@@ -58,7 +65,7 @@ A `ggplot`, or `NULL` when there is too little data to draw (fewer
   than 2 samples, or fewer than 2 compounds with any variance).
 }
 \description{
-The same picture [plotHeatmap()] draws - compounds on rows, samples on
+The same picture [mrmPlotHeatmap()] draws - compounds on rows, samples on
 columns, a coloured annotation bar for the sample factor along the top and
 for the compound class down the left, gaps between blocks - with one thing
 changed: what a cell's colour means. The **hue** is the group's mean scaled
@@ -71,7 +78,7 @@ carrying one opaque cell among faded ones is a mean resting on a single
 sample - which is what a plain group-mean heatmap hides, and what a reader
 needs in order to judge whether a colour contrast is worth believing.
 
-[plotHeatmap()] never averages, so it does not have this problem, and it is
+[mrmPlotHeatmap()] never averages, so it does not have this problem, and it is
 the better choice while the sample axis stays legible - in practice, while
 there are two groups. Past three the cells get narrow and the eye stops
 resolving individual samples anyway, which is where this earns its place.
@@ -104,9 +111,24 @@ large".
 `cap` defaults to a quantile of the group means actually being drawn, and
 that default matters more than it looks. Averaging *n* replicates shrinks a
 scaled value by roughly `sqrt(n)`, so a limit chosen for per-sample scores -
-the `+/-2.5` that suits [plotHeatmap()] - leaves a group-mean panel using a
+the `+/-2.5` that suits [mrmPlotHeatmap()] - leaves a group-mean panel using a
 small part of the colour range and looking washed out, whatever the opacity
 is set to. Take the limit from the quantity being drawn.
+}
+
+\section{One cap or many}{
+
+`group_scale = "shared"` puts every compound on one limit, so a compound
+whose groups separate twice as far is drawn twice as saturated and the
+colour can be read across rows: pale means it moved less. What is compared
+is separation in units of that compound's own spread, not fold change - a
+compound that doubles but scatters wildly sits below one that moves a fifth
+as much in every sample.
+
+`group_scale = "feature"` gives each compound its own limit, so each row
+fills the ramp whatever it did. Nothing is pale, so nothing can be ranked;
+use it to read one compound along the groups. `cap` is ignored, since the
+limit is each compound's own largest group mean.
 }
 
 \examples{
@@ -117,12 +139,12 @@ plotGroupHeatmap(de, color_samples_by = "Treatment",
                    group_features_by = "Enzymatic_pathway")
 }
 \seealso{
-[plotHeatmap()], the same layout without the averaging.
+[mrmPlotHeatmap()], the same layout without the averaging.
 
 Other stats:
+\code{\link[=mrmPlotHeatmap]{mrmPlotHeatmap()}},
 \code{\link[=plotBoxplot]{plotBoxplot()}},
 \code{\link[=plotCorrelation]{plotCorrelation()}},
-\code{\link[=plotHeatmap]{plotHeatmap()}},
 \code{\link[=plotVolcano]{plotVolcano()}},
 \code{\link[=runStats]{runStats()}},
 \code{\link[=summariseGroups]{summariseGroups()}}

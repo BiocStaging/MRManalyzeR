@@ -66,33 +66,35 @@
 #' # delete it for being absent from two thirds of the samples.
 #' filterFeatures(de, min_frac = 0.5, method = "within", group_col = "Treatment")
 #' @export
-filterFeatures = function(de, min_frac = 0.5,
+filterFeatures <- function(de, min_frac = 0.5,
                           method = c("within", "across", "QC"),
                           group_col = NULL,
                           sample_col = "Sample_type",
                           sample_labels = "Sample",
                           qc_label = "QC"){
+  .check_de(de, "filterFeatures")
 
-  method = match.arg(method)
+  method <- match.arg(method)
   if(!is.numeric(min_frac) || length(min_frac) != 1L ||
      is.na(min_frac) || min_frac < 0 || min_frac > 1)
     stop("filterFeatures: min_frac must be a single number in [0, 1].")
 
-  X     = as.data.frame(de$data)
-  smeta = as.data.frame(de$sample_meta)
+  X    <- as.data.frame(de$data)
+  smeta <- as.data.frame(de$sample_meta)
   if(!ncol(X)) return(de)
 
   # Which rows are study samples. A missing column is a config error worth
   # saying out loud, but not worth stopping a run over - fall back to every
   # row and report what that means.
-  study = rep(TRUE, nrow(X))
+  study <- rep(TRUE, nrow(X))
   if(method %in% c("within", "across") && !is.null(sample_col)){
     if(!sample_col %in% colnames(smeta)){
-      warning(sprintf(paste0("filterFeatures: '%s' not in sample_meta - every ",
-                             "injection counts towards detection, QCs and ",
-                             "blanks included."), sample_col))
+      fmt <- paste0("filterFeatures: '%s' not in sample_meta - every ",
+                    "injection counts towards detection, QCs and ",
+                    "blanks included.")
+      warning(sprintf(fmt, sample_col))
     } else {
-      study = as.character(smeta[[sample_col]]) %in% sample_labels
+      study <- as.character(smeta[[sample_col]]) %in% sample_labels
       if(!any(study))
         stop(sprintf("filterFeatures: no rows where %s is one of: %s.",
                      sample_col, paste(sample_labels, collapse = ", ")))
@@ -102,49 +104,52 @@ filterFeatures = function(de, min_frac = 0.5,
   # QC mode needs QCs; without them it cannot answer its own question, and a
   # copied config block should not take the whole run down.
   if(identical(method, "QC")){
-    has_qc = sample_col %in% colnames(smeta) &&
+    has_qc <- sample_col %in% colnames(smeta) &&
              any(as.character(smeta[[sample_col]]) %in% qc_label)
     if(!has_qc){
-      method = if(is.null(group_col)) "across" else "within"
-      warning(sprintf(paste0("filterFeatures: no QC injections (%s == '%s') - ",
-                             "falling back to method = '%s'."),
-                      sample_col, qc_label, method))
+      method <- if(is.null(group_col)) "across" else "within"
+      fmt <- paste0("filterFeatures: no QC injections (%s == '%s') - ",
+                    "falling back to method = '%s'.")
+      warning(sprintf(fmt, sample_col, qc_label, method))
       if(sample_col %in% colnames(smeta))
-        study = as.character(smeta[[sample_col]]) %in% sample_labels
+        study <- as.character(smeta[[sample_col]]) %in% sample_labels
     }
   }
 
-  frac_of = function(rows) colMeans(!is.na(X[rows, , drop = FALSE]))
+  frac_of <- function(rows) colMeans(!is.na(X[rows, , drop = FALSE]))
 
   if(identical(method, "QC")){
-    best = frac_of(as.character(smeta[[sample_col]]) %in% qc_label)
+    best <- frac_of(as.character(smeta[[sample_col]]) %in% qc_label)
 
   } else if(identical(method, "across")){
-    best = frac_of(study)
+    best <- frac_of(study)
 
   } else {
-    if(is.null(group_col) || !group_col %in% colnames(smeta))
-      stop(sprintf(paste0("filterFeatures: method 'within' needs group_col to ",
-                          "name a sample_meta column (got %s)."),
-                   if(is.null(group_col)) "NULL" else sprintf("'%s'", group_col)))
-    Xs = X[study, , drop = FALSE]
-    g  = as.character(smeta[[group_col]])[study]
-    g[is.na(g) | !nzchar(g)] = "_unassigned_"
+    if(is.null(group_col) || !group_col %in% colnames(smeta)){
+      fmt <- paste0("filterFeatures: method 'within' needs group_col to ",
+                    "name a sample_meta column (got %s).")
+      got <- if(is.null(group_col)) "NULL" else sprintf("'%s'", group_col)
+      stop(sprintf(fmt, got))
+    }
+    Xs <- X[study, , drop = FALSE]
+    g <- as.character(smeta[[group_col]])[study]
+    g[is.na(g) | !nzchar(g)] <- "_unassigned_"
     # Best group wins: a feature that is real in one treatment survives the
     # groups it is genuinely absent from.
-    per = vapply(split(seq_len(nrow(Xs)), g),
+    per <- vapply(split(seq_len(nrow(Xs)), g),
                  function(i) colMeans(!is.na(Xs[i, , drop = FALSE])),
                  numeric(ncol(Xs)))
-    best = if(is.matrix(per)) apply(per, 1L, max) else per
-    names(best) = colnames(Xs)
+    best <- if(is.matrix(per)) apply(per, 1L, max) else per
+    names(best) <- colnames(Xs)
   }
 
-  keep = best >= min_frac
-  drop = colnames(X)[!keep]
+  keep <- best >= min_frac
+  drop <- colnames(X)[!keep]
 
-  vm = as.data.frame(de$variable_meta)
-  vm$detected_frac = round(unname(best[match(rownames(vm), names(best))]), 4)
-  de$variable_meta = vm
+  vm <- as.data.frame(de$variable_meta)
+  .warn_overwrite(vm, "detected_frac", "filterFeatures")
+  vm$detected_frac <- round(unname(best[match(rownames(vm), names(best))]), 4)
+  de$variable_meta <- vm
 
   if(length(drop)){
     message(sprintf(

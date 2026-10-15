@@ -22,7 +22,7 @@
 #' dim(m)
 #' @family data parse
 #' @export
-readTargetLynx = function(xlsx_path, datatype = "Area",
+readTargetLynx <- function(xlsx_path, datatype = "Area",
                            tl_headers = c("ID", "Name", "Area", "ng/mL", "Response", "S/N"),
                            snr = FALSE, data_tab_names = NULL){
 
@@ -39,13 +39,13 @@ readTargetLynx = function(xlsx_path, datatype = "Area",
 #'   object when `snr` is `FALSE`).
 #' @keywords internal
 #' @noRd
-.read_targetlynx = function(xlsx_path, datatype, tl_headers, snr,
+.read_targetlynx <- function(xlsx_path, datatype, tl_headers, snr,
                             data_tab_names){
-  lcms_table = extractTable(xlsx_path, tl_headers = tl_headers,
-                            data_tab_names = data_tab_names) %>%
+  lcms_table <- extractTable(xlsx_path, tl_headers = tl_headers,
+                            data_tab_names = data_tab_names) |>
     subset(Name != "")
 
-  raw = .build_wide_matrix(lcms_table, datatype)
+  raw <- .build_wide_matrix(lcms_table, datatype)
   list(raw    = raw,
        masked = if(isFALSE(snr)) raw
                 else .apply_snr_mask(raw, lcms_table, snr))

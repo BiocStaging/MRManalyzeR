@@ -369,7 +369,7 @@ function showQQPlot_%s(id){
 # Subset to requested sample types
 keep = metadata[[qc_pca_head]] %in% qc_pca_levels
 X = as.matrix(data_matrix[keep, , drop = FALSE])
-# Values from the exported matrix: what replace_MVs imputed, so runPCA()
+# Values from the exported matrix: what replace_MVs imputed, so mrmRunPCA()
 # fills only what is still missing.
 .P = get0("pca_datamatrices")
 if(!is.null(.P)){
@@ -389,7 +389,7 @@ smeta_pca = metadata[keep, , drop = FALSE]
 rownames(X)         = .qc_rn
 rownames(smeta_pca) = .qc_rn
 
-res_pca = runPCA(X,
+res_pca = mrmRunPCA(X,
                            impute        = qc_pca_impute,
                            impute_frac   = qc_pca_impute_frac,
                            seed          = qc_pca_seed,
@@ -427,7 +427,7 @@ if(is.null(res_pca$pr)){
     # Injection order is stored as character in some workbooks but is really a
     # sequence, so force a continuous scale for it; everything else is decided
     # from the column's own type.
-    p = plotPCA(res_pca, smeta_pca, colour_by = col_name,
+    p = mrmPlotPCA(res_pca, smeta_pca, colour_by = col_name,
                  label         = qc_pca_label,
                  label_factor  = qc_pca_label_factor,
                  ellipse       = qc_pca_ellipse,

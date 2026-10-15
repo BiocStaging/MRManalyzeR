@@ -40,10 +40,10 @@ head(summariseFeatures(de))
 \seealso{
 Other QC check:
 \code{\link[=addCVMetrics]{addCVMetrics()}},
+\code{\link[=mrmPlotPCA]{mrmPlotPCA()}},
+\code{\link[=mrmRunPCA]{mrmRunPCA()}},
 \code{\link[=plotDrift]{plotDrift()}},
 \code{\link[=plotLoadings]{plotLoadings()}},
-\code{\link[=plotPCA]{plotPCA()}},
-\code{\link[=plotQQ]{plotQQ()}},
-\code{\link[=runPCA]{runPCA()}}
+\code{\link[=plotQQ]{plotQQ()}}
 }
 \concept{QC check}

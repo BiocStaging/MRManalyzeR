@@ -25,11 +25,12 @@
 #' head(summariseFeatures(de))
 #' @family QC check
 #' @export
-summariseFeatures = function(de, removed_features = NULL){
+summariseFeatures <- function(de, removed_features = NULL){
+  .check_de(de, "summariseFeatures")
 
-  vm = as.data.frame(de$variable_meta)
+  vm <- as.data.frame(de$variable_meta)
 
-  pull = function(df, status){
+  pull <- function(df, status){
     if(is.null(df) || nrow(df) == 0)
       return(data.frame(Compound = character(0), Status = character(0),
                         Comment = character(0), stringsAsFactors = FALSE))
@@ -41,7 +42,7 @@ summariseFeatures = function(de, removed_features = NULL){
       stringsAsFactors = FALSE)
   }
 
-  out = rbind(pull(vm, "included"), pull(removed_features, "excluded"))
-  rownames(out) = NULL
+  out <- rbind(pull(vm, "included"), pull(removed_features, "excluded"))
+  rownames(out) <- NULL
   out
 }

@@ -182,7 +182,10 @@ was excluded. Default `"Comment"`.}
 \value{
 A named list with `dataset` (the `DatasetExperiment`, imputed when
   `replace_MVs` is set), `excluded_features` (a data frame of features
-  dropped along the way, with the reason recorded) and `measured` (the same
+  dropped along the way, with `Failed_step` naming the step that took each
+  one - `User exclude`, `Detection filter`, `Signal filter (...)`,
+  `Never measured`, `Not in source data` or `No metadata entry` - and the
+  reason recorded) and `measured` (the same
   dataset before imputation, gaps included; identical to `dataset` when
   nothing was imputed). The first two stay in that order, so existing code
   indexing `[[1]]` and `[[2]]` keeps working.

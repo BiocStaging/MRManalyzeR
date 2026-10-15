@@ -1,4 +1,102 @@
+# MRManalyzeR 0.99.6
+
+Changes from the Bioconductor review.
+
+* Five functions take an `mrm` prefix, because their old names were also
+  exported by packages a reader might have attached: `runPCA()`,
+  `plotPCA()` and `plotHeatmap()` become `mrmRunPCA()`, `mrmPlotPCA()` and
+  `mrmPlotHeatmap()` (`scater`); `runExample()` becomes `mrmRunExample()`
+  (`shiny`); and the three validators become `mrmValidateInput()`,
+  `mrmValidateConfig()` and `mrmValidateDesign()` (`validateConfig()` is a
+  name quantMSImageR uses as well). A script that loaded two of these got
+  whichever was attached last. The remaining exports were checked against
+  every package installed here and keep their names. Scripts calling the old
+  names need updating; the YAML configurations do not, as they name no
+  functions.
+
+* `newConfig()` writes a configuration to edit, so a first run does not start
+  from a blank file. `minimal = TRUE` gives the keys a run cannot do without,
+  `FALSE` copies the fully commented reference; `template = "combine"` writes
+  the merge-several-panels form.
+
+* Every exported step checks that it was handed a `DatasetExperiment`, and
+  says which function was called with what, instead of failing further in on
+  a slot the object does not have.
+
+* A step that writes its record into `variable_meta` or `sample_meta` now
+  warns when it is replacing columns from an earlier run -
+  `addCVMetrics()`, `correctBatch()`, `imputeMissing()`, `filterBlanks()`,
+  `filterFeatures()` and `filterSamples()`. The second set of numbers
+  describes different data from the first.
+
+* The package uses base R where it used to carry a dependency: `|>` instead
+  of `magrittr`'s `%>%`, and base R's `%||%` instead of its own. `magrittr`
+  is no longer a dependency, and `stats` and `utils` are declared in
+  DESCRIPTION, which they always should have been.
+
+* `=` is no longer used for assignment in package code.
+
+* `mrm_validation`, what the three validation functions return, is
+  documented: its three elements and what `print()` does with them.
+
+* `data-raw/` is now `inst/script/`, with a note recording where everything
+  in `inst/extdata` came from - the real workbook's publication, and the
+  script that generates the simulated one.
+
+* The README gives Bioconductor installation instructions.
+
+Also in this release.
+
+* `plotGroupHeatmap()` draws a key for its opacity. The cell opacity carries
+  meaning - whether a sample moved with the direction its group's mean moved
+  in, or against it - and until now nothing on the figure said so.
+
+* Both vignettes and the two report templates were revised after an
+  independent read. The corrections of substance: the detection-filter
+  example demonstrated the opposite of what its text claimed, the
+  blank-filter example ran on a matrix whose blanks were already masked, the
+  walkthrough switched to the imputed dataset where it said it was using
+  measured values, `CV_sample_vs_QC` was described with a threshold that
+  belongs to a different statistic, and the stats report's Methods text still
+  described the pre-0.99.3 engine (two tests per comparison, adjustment
+  across the whole workbook).
+
+* `feature_metadata` in the results workbook leads with `Lowest_measured`
+  after the compound name: the smallest value the instrument actually
+  reported for that compound in the **biological samples**, read before
+  imputation, and `NA` for a compound never measured there. QC and blank
+  injections are excluded - a pooled QC is not study material, and a blank is
+  what the signal is measured against. It is the floor to read a borderline
+  concentration against, and is rounded to the nearest whole number - the
+  column is there to be read, and a peak area means nothing at the eighth
+  decimal place. It is an integer whatever the datatype, so on a run
+  reporting concentrations a floor below 0.5 reads as zero.
+
+* `removed_features` leads with `Failed_step`, naming what took each
+  compound out - `User exclude`, `Detection filter`, `Signal filter (LOD)`,
+  `Never measured`, `Not in source data` or `No metadata entry`. The earliest
+  decision wins, so a compound the curator excluded says so whatever else is
+  true of it.
+
+* Compounds dropped by the detection filter are listed in `removed_features`.
+  They used to leave the matrix without leaving a row behind, so a panel
+  member could disappear from the report with nothing recorded.
+
 # MRManalyzeR 0.99.5
+
+* `DT` moves from Suggests to Imports. Both reports call `DT::datatable()`
+  without a fallback, so a run without it installed stopped part-way through
+  rendering.
+
+* The group-mean heatmap takes a colour scale: `scale: z` keeps one colour
+  limit for the whole panel, so compounds can be compared with each other and
+  a pale row is one whose groups separated less; `scale: feature` gives each
+  compound its own limit, so every row fills the colour range and only the
+  shape along the groups can be read; `scale: auto`, the example config's
+  setting, picks shared at two groups and per compound at three or more,
+  where the question is usually which group is high rather than which
+  compound moved most. `plotGroupHeatmap(group_scale = )` is the same choice,
+  without `auto`. `scale:` used to be ignored by that style.
 
 * New package logo, drawn top right in both reports and used by the README.
 
@@ -13,7 +111,7 @@
   and the cells whenever `group_features_by` is set - block, then names, then
   data, which is how a pathway figure is read. They used to sit on the axis,
   outside the bar. Nothing to configure; without a class column they stay on
-  the axis, and `feature_labels: hide` still drops them. `plotHeatmap()` is
+  the axis, and `feature_labels: hide` still drops them. `mrmPlotHeatmap()` is
   unchanged: pheatmap draws its row names at the edge and cannot move them.
 
 # MRManalyzeR 0.99.4
@@ -82,11 +180,11 @@
   set to one constant, which shrank each compound's variance and tied its
   ranks. `imputeMissing()` gains `method = "gaussian"` (default) or
   `"constant"` (the old fill) and `seed` (default 42, so a rerun is
-  identical); `runPCA()` gains `impute = "gaussian"`, now its default, and
+  identical); `mrmRunPCA()` gains `impute = "gaussian"`, now its default, and
   `seed`. In YAML: `impute_method:` and `impute_seed:` under
   `PeakMatrixProcessing:`, and `seed:` in the PCA `preprocess:` blocks. A
   report PCA whose `preprocess:` omits `impute:` now uses `gaussian` rather
-  than `min`, and `runPCA()` counts zeros as missing, as `imputeMissing()`
+  than `min`, and `mrmRunPCA()` counts zeros as missing, as `imputeMissing()`
   already did.
 
 * The reports use measured values. With `replace_MVs:` set, the xlsx
@@ -181,9 +279,9 @@
 # MRManalyzeR 0.99.3
 
 * **Function names are now camelCase**, following the Bioconductor style
-  guide (`runMRManalyzeR()`, `processDataset()`, `plotHeatmap()`, and so on).
+  guide (`runMRManalyzeR()`, `processDataset()`, `mrmPlotHeatmap()`, and so on).
   This renames every exported function; there are no back-compatible aliases,
-  so calling code must be updated. Acronyms stay upper case - `plotPCA()`,
+  so calling code must be updated. Acronyms stay upper case - `mrmPlotPCA()`,
   `addCVMetrics()`, `readTargetLynx()`.
 
 * New `filterFeatures()`: drops features by detection frequency. `method =
@@ -216,7 +314,7 @@
 * New `plotGroupHeatmap()`: a group-mean heatmap where the hue is the group
   mean and the opacity of each sample's sub-cell is that sample's contribution
   to it, so a mean resting on a single sample is visible rather than hidden.
-  `plotHeatmap()` is unchanged and remains the right choice while the sample
+  `mrmPlotHeatmap()` is unchanged and remains the right choice while the sample
   axis is still legible - it never averages.
 * The colour limit defaults from the group means themselves rather than from a
   per-sample scale, since averaging replicates shrinks a scaled value by

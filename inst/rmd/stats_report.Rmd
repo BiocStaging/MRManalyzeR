@@ -163,7 +163,7 @@ heatmap_rank_by            = tolower(report_pars$heatmap$rank_by %||% "p_adj")
 .chk_orient = function(x) if(x %in% c("samples_y","samples_x","auto")) x else "samples_y"
 .chk_style  = function(x) if(x %in% c("auto","samples","group_means")) x else "auto"
 # 'auto' picks per heatmap: with two groups every sample is legible side by
-# side, so plotHeatmap() shows strictly more; from three the cells narrow and
+# side, so mrmPlotHeatmap() shows strictly more; from three the cells narrow and
 # the eye stops resolving individual samples, which is where the group-mean
 # rendering with per-sample opacity is worth the unfamiliar encoding. Only ONE
 # style is ever drawn for a given heatmap - the two are alternatives, not a
@@ -372,13 +372,10 @@ Statistical analysis of processed `r units` data. Pre-defined comparisons,
 correlations, and linear models from the YAML config; multivariate (PCA +
 heatmap) inspection per comparison.
 
-> **All per-feature numerical results — comparisons p-values, correlations,
-> linear-model coefficients — are written to the stats xlsx (file path
-> ends with `_stats.xlsx`) saved alongside this HTML report. Open it in
-> Excel to filter / sort the full tables.** This report shows only the
-> visualisations and the volcano significant-feature shortlist; the
-> long-form tables are intentionally not duplicated here. The workbook's
-> first sheet, `key`, defines every column heading it contains.
+> Per-feature numerical results — comparison p-values, correlations and
+> linear-model coefficients — are in the `_stats.xlsx` written beside this
+> report; its first sheet, `key`, defines every column. This report carries
+> the visualisations and the volcano shortlist.
 
 **Missing-value policy** (which sections impute and which don't):
 
@@ -387,7 +384,7 @@ heatmap) inspection per comparison.
 | Section | NA handling |
 |---|---|
 | Comparisons (t-test / Wilcoxon / ANOVA / Kruskal / Tukey) | **No imputation** — raw values used; NAs dropped per test by `t.test()` / `wilcox.test()` / `aov()`. |
-| Boxplots (per-compound + by-factor) | **No imputation** — raw values plotted; NAs simply absent from the boxes/jitter. |
+| Boxplots (per-compound + by-factor) | **No imputation** — raw values plotted; NAs absent from the boxes/jitter. |
 | Correlations | **No imputation** — `pairwise.complete.obs` (each pair uses its own complete cases); a pair with fewer than 3 shared samples is left blank. |
 | Linear models | `lm()` drops rows with NA in the feature or any predictor (per feature). |
 | PCA (global + per-comparison) | `r if(isTRUE(get0("pca_imputed"))) "The values imputed in pre-processing (\x60replace_MVs\x60), as in the xlsx matrix" else sprintf("Imputed per \x60pca.preprocess.impute\x60 (in this config: %s%s)", pca_impute, if(pca_impute %in% c("frac_min", "gaussian")) sprintf(" with frac=%g", pca_impute_frac) else "")`, then transform → centre → scale. |
@@ -544,15 +541,15 @@ if(length(comparisons) == 0){
 }
 ```
 
-**Methods.** For each comparison the test method is auto-selected by group
-count: 2 levels → t-test + Wilcoxon; ≥3 levels → ANOVA + Kruskal-Wallis,
-plus Tukey HSD post-hoc per pair. P-values are Benjamini-Hochberg adjusted
-across **all** comparisons × methods × features.
+**Methods.** Each comparison names its test in the YAML: `welch` (the
+default), `student` or `wilcoxon` at two levels; `anova` (Tukey HSD post-hoc)
+or `kruskal` (Holm-adjusted pairwise Wilcoxon) at three or more. One test per
+comparison. P-values are Benjamini-Hochberg adjusted within families — one
+per comparison and method — and each row records the family it was adjusted
+in as `adjust_family`.
 
-> **Full p-value tables (per comparison + per method, all features) are
-> in the `stats` tab of the stats xlsx** written by `runMRManalyzeR()`
-> alongside the rendered HTML reports. The same xlsx also carries the
-> `correlations` and `linear_models` tabs.
+> Full p-value tables are in the `stats` tab of the `_stats.xlsx`, which
+> also carries `correlations` and `linear_models`.
 
 ## 4.1 Per-compound `r switch(plot_type, box="boxplot", bar="barplot", both="boxplot + barplot")` (faceted across comparisons) {-}
 
@@ -900,7 +897,7 @@ tab is a **global** PCA across the biological subset, coloured by
 .pca_run_one = function(de){
   M  = as.matrix(de$data)
   # Same samples and compounds, values from the exported matrix: what
-  # replace_MVs imputed, so runPCA() fills only what is still missing.
+  # replace_MVs imputed, so mrmRunPCA() fills only what is still missing.
   P = get0("pca_datamatrices")
   if(!is.null(P)){
     P = as.matrix(as.data.frame(P$data))
@@ -914,7 +911,7 @@ tab is a **global** PCA across the biological subset, coloured by
   rownames(M) = rn
   rownames(sm) = rn
 
-  res = runPCA(M,
+  res = mrmRunPCA(M,
                          impute        = pca_impute,
                          impute_frac   = pca_impute_frac,
                          seed          = pca_seed,
@@ -1030,9 +1027,11 @@ for(nm in names(.pca_runs)){
 
 `r if(!volcano_include) "_Skipped — set_ \x60volcano.enabled: True\x60 _in YAML to enable._"`
 
-**Methods.** One volcano per 2-group comparison directly from the t-test
-rows. For ≥3-group comparisons we plot one volcano per Tukey HSD pair.
-X = log2 fold-change (mean_g2 / mean_g1); Y = -log10 of `r if(volcano_use_adj) "BH-adjusted" else "raw"` p
+**Methods.** One volcano per two-group comparison, from that comparison's
+own test rows. At three or more levels, one per post-hoc pair — Tukey for
+`anova`, pairwise Wilcoxon for `kruskal`.
+X = log2 fold-change (mean_g2 / mean_g1), so positive means higher in the
+second level; Y = -log10 of `r if(volcano_use_adj) "BH-adjusted" else "raw"` p
 (toggle via `stats_report.volcano.use_adjusted`).
 Top `r volcano_top_n` features by significance are labelled.
 Significance threshold dashed line at p `r if(volcano_use_adj) "(BH-adjusted)" else "(raw)"` = `r sig_threshold`.
@@ -1123,7 +1122,7 @@ if(nrow(volc_data) == 0){
 # group_by / feature_labels: explicit overrides (default to the cfg values);
 #           the combined split-by-class heatmap overrides group_by to the
 #           subclass column.
-# Thin wrapper over plotHeatmap(): the scope/target machinery below hands us
+# Thin wrapper over mrmPlotHeatmap(): the scope/target machinery below hands us
 # a matrix plus its metadata, so rewrap them as a DatasetExperiment, map the
 # resolved cfg onto the function's arguments, and print.
 .draw_heatmap = function(M_raw, smeta, vmeta, title, cfg = heatmap_general_cfg,
@@ -1166,12 +1165,24 @@ if(nrow(volc_data) == 0){
 
   # One style per heatmap, never both. cluster_rows, cluster_within_groups,
   # orientation and cell_size are properties of the pheatmap grob with no
-  # counterpart in the ggplot renderer, and `scale` has none either - the
-  # group-mean style always scales per compound, since averaging unscaled
-  # values across compounds spanning orders of magnitude has no useful reading.
-  # Those settings are ignored under group_means rather than approximated.
-  style = .pick_style(cfg$style,
-                      length(unique(sm[[cfg$color_samples_by]])))
+  # counterpart in the ggplot renderer, and are ignored under group_means
+  # rather than approximated. `scale` carries over: that style always
+  # z-scores per compound, so the setting says whether the group means are
+  # then drawn on one colour limit (z, compare compounds) or on one limit per
+  # compound (feature, read a compound along the groups).
+  n_grp = length(unique(sm[[cfg$color_samples_by]]))
+  style = .pick_style(cfg$style, n_grp)
+  # scale: auto reads the panel the way the group count asks to be read. Two
+  # groups is a contrast, and one colour limit lets the compounds be ranked by
+  # how far they separate. Three or more is a profile - which group is high,
+  # which is low - and there a shared limit leaves the quieter compounds flat,
+  # so each gets its own.
+  # `else` must stay on the same line as what precedes it: an assignment whose
+  # right-hand side ends a line is complete, and a lone `else` next line is a
+  # syntax error that takes the whole report down.
+  grp_scale = if(identical(cfg$scale, "feature") ||
+                 (identical(cfg$scale, "auto") && n_grp >= 3))
+    "feature" else "shared"
   p = if(identical(style, "group_means"))
     plotGroupHeatmap(
       de_hm,
@@ -1179,17 +1190,18 @@ if(nrow(volc_data) == 0){
       title             = title,
       group_features_by = group_by,
       transform         = cfg$transform,
+      group_scale       = grp_scale,
       alpha_floor       = cfg$alpha_floor,
       feature_labels    = feature_labels,
       sample_id_head    = sample_id_head)
   else
-    plotHeatmap(
+    mrmPlotHeatmap(
       de_hm,
       title                 = title,
       color_samples_by      = cfg$color_samples_by,
       group_features_by     = group_by,
       transform             = cfg$transform,
-      scale                 = cfg$scale,
+      scale                 = if(identical(cfg$scale, "none")) "none" else "z",
       cluster_rows          = cfg$cluster_rows,
       cluster_within_groups = cfg$cluster_within,
       orientation           = cfg$orientation,
@@ -1501,10 +1513,11 @@ for(tg in .tg47){
 
 # 5. Ion ratios
 
-User-defined compound ratios (e.g. EpOME/DiHOME as sEH activity proxy). Each
-ratio is `numerator / denominator` per sample; denominator ≤ 0 gives NA.
-Wilcoxon p-value shown per comparison panel (Kruskal–Wallis for ≥3 groups).
-Ratios are **not** carried into heatmap, PCA, volcano, or the comparisons table.
+User-defined compound ratios (e.g. EpOME/DiHOME). Each ratio is
+`numerator / denominator` per sample; denominator ≤ 0 gives NA. A ratio
+describes relative abundance; it does not measure enzyme activity or flux.
+Wilcoxon p-value per comparison panel (Kruskal–Wallis for ≥3 groups). Ratios
+are not carried into the heatmap, PCA, volcano or comparisons table.
 
 `r if(!ion_ratios_enabled) "_No ion ratios defined — add an_ \x60ion_ratios:\x60 _block with a_ \x60ratios:\x60 _list to_ \x60stats_report\x60 _in the YAML to enable this section._"`
 
@@ -1749,18 +1762,18 @@ for(i in seq_len(nrow(combos))){
 
 # 7. Linear models
 
-For each feature we fit `feature ~ formula` (one `lm()` per feature).
-Each row of the table is **one coefficient × feature**.
+One `lm()` per feature, fitting `feature ~ formula`. Each row of the table
+is one coefficient × feature.
 
 **Reading the terms** (using a model like `~ Treatment + Sex` with reference
 levels `Treatment = Ctrl`, `Sex = Female`):
 
 - **`Intercept (ref: Treatment=Ctrl; Sex=Female)`** — the model's expected mean
-  value of the feature for a sample at all reference levels (a Ctrl female).
-  Often biologically uninteresting on raw intensity data; mostly a baseline.
+  value of the feature for a sample at all reference levels (a Ctrl female):
+  the model's baseline.
 - **`Treatment: HDM_Curdlan (vs Ctrl)`** — how much higher (positive estimate)
   or lower (negative) the feature is in HDM_Curdlan vs Ctrl, **after adjusting
-  for Sex**. This is the treatment effect controlling for sex imbalance.
+  for Sex**.
 - **`Sex: Male (vs Female)`** — how much the feature differs in males vs females,
   **after adjusting for Treatment**.
 - **Continuous predictors** (e.g. `~ Treatment + Age`) get a single term —

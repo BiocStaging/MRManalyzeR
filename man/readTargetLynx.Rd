@@ -48,10 +48,10 @@ Other data parse:
 \code{\link[=combineDatasets]{combineDatasets()}},
 \code{\link[=loadConfig]{loadConfig()}},
 \code{\link[=loadDataset]{loadDataset()}},
+\code{\link[=mrmValidateConfig]{mrmValidateConfig()}},
+\code{\link[=mrmValidateDesign]{mrmValidateDesign()}},
+\code{\link[=mrmValidateInput]{mrmValidateInput()}},
 \code{\link[=readPeakMatrix]{readPeakMatrix()}},
-\code{\link[=readSkyline]{readSkyline()}},
-\code{\link[=validateConfig]{validateConfig()}},
-\code{\link[=validateDesign]{validateDesign()}},
-\code{\link[=validateInput]{validateInput()}}
+\code{\link[=readSkyline]{readSkyline()}}
 }
 \concept{data parse}
