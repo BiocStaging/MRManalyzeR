@@ -282,9 +282,10 @@ statistics. `res$datasetExperiment` is a `DatasetExperiment`, and a
 either reach the same data.
 
 Taking the processed dataset into `r BiocStyle::Biocpkg("structToolbox")` for
-a PLS-DA:
+a PLS-DA. That model is fitted by `pls`, which `structToolbox` suggests
+rather than requires, so the chunk below runs only where both are installed:
 
-```{r interop}
+```{r interop, eval = requireNamespace("structToolbox", quietly = TRUE) && requireNamespace("pls", quietly = TRUE)}
 library(structToolbox)
 
 de      <- loadDataset(system.file("extdata", "example_synthetic.RDS",

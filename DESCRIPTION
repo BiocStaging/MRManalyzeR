@@ -53,6 +53,7 @@ Imports:
 Suggests:
     pmp,
     structToolbox,
+    pls,
     SummarizedExperiment,
     ggrepel,
     plotly,
