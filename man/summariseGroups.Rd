@@ -38,10 +38,10 @@ head(summariseGroups(de, "Treatment"))
 }
 \seealso{
 Other stats:
+\code{\link[=mrmPlotHeatmap]{mrmPlotHeatmap()}},
 \code{\link[=plotBoxplot]{plotBoxplot()}},
 \code{\link[=plotCorrelation]{plotCorrelation()}},
 \code{\link[=plotGroupHeatmap]{plotGroupHeatmap()}},
-\code{\link[=plotHeatmap]{plotHeatmap()}},
 \code{\link[=plotVolcano]{plotVolcano()}},
 \code{\link[=runStats]{runStats()}}
 }

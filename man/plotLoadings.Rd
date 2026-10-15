@@ -7,7 +7,7 @@
 plotLoadings(pca, variable_meta, components = c(1, 2), colour_by = NULL)
 }
 \arguments{
-\item{pca}{The list returned by [runPCA()].}
+\item{pca}{The list returned by [mrmRunPCA()].}
 
 \item{variable_meta}{Feature metadata, or a `DatasetExperiment` to take it
 from. Matched to the loadings by `Compound`.}
@@ -38,18 +38,18 @@ same colour in both figures.
 \examples{
 de  <- loadDataset(system.file("extdata", "example_synthetic.RDS",
                                 package = "MRManalyzeR"))
-pca <- runPCA(de, transform = "log2")
+pca <- mrmRunPCA(de, transform = "log2")
 plotLoadings(pca, de, colour_by = "Enzymatic_pathway")
 }
 \seealso{
-[plotPCA()] for the matching scores plot.
+[mrmPlotPCA()] for the matching scores plot.
 
 Other QC check:
 \code{\link[=addCVMetrics]{addCVMetrics()}},
+\code{\link[=mrmPlotPCA]{mrmPlotPCA()}},
+\code{\link[=mrmRunPCA]{mrmRunPCA()}},
 \code{\link[=plotDrift]{plotDrift()}},
-\code{\link[=plotPCA]{plotPCA()}},
 \code{\link[=plotQQ]{plotQQ()}},
-\code{\link[=runPCA]{runPCA()}},
 \code{\link[=summariseFeatures]{summariseFeatures()}}
 }
 \concept{QC check}

@@ -49,44 +49,48 @@
 #' # S3_failed is dropped; a QC at the same missingness would only be reported
 #' filterSamples(de, max_na = 0.5)
 #' @export
-filterSamples = function(de, max_na = 0.8,
+filterSamples <- function(de, max_na = 0.8,
                          sample_col = "Sample_type",
                          sample_labels = "Sample"){
+  .check_de(de, "filterSamples")
 
   if(!is.numeric(max_na) || length(max_na) != 1L ||
      is.na(max_na) || max_na < 0 || max_na > 1)
     stop("filterSamples: max_na must be a single number in [0, 1].")
 
-  X     = as.data.frame(de$data)
-  smeta = as.data.frame(de$sample_meta)
+  X    <- as.data.frame(de$data)
+  smeta <- as.data.frame(de$sample_meta)
   if(!nrow(X) || !ncol(X)) return(de)
 
-  na_frac = rowMeans(is.na(X))
+  na_frac <- rowMeans(is.na(X))
 
-  eligible = rep(TRUE, nrow(X))
+  eligible <- rep(TRUE, nrow(X))
   if(!is.null(sample_col)){
     if(!sample_col %in% colnames(smeta)){
-      warning(sprintf(paste0("filterSamples: '%s' not in sample_meta - every ",
-                             "injection is eligible for removal, QCs and ",
-                             "blanks included."), sample_col))
+      fmt <- paste0("filterSamples: '%s' not in sample_meta - every ",
+                    "injection is eligible for removal, QCs and ",
+                    "blanks included.")
+      warning(sprintf(fmt, sample_col))
     } else {
-      eligible = as.character(smeta[[sample_col]]) %in% sample_labels
+      eligible <- as.character(smeta[[sample_col]]) %in% sample_labels
     }
   }
 
-  failing  = na_frac > max_na
-  to_drop  = failing & eligible
-  exempt   = failing & !eligible
+  failing <- na_frac > max_na
+  to_drop <- failing & eligible
+  exempt  <- failing & !eligible
 
-  smeta$na_frac = round(na_frac, 4)
-  de$sample_meta = smeta
+  .warn_overwrite(smeta, "na_frac", "filterSamples", "sample_meta")
+  smeta$na_frac <- round(na_frac, 4)
+  de$sample_meta <- smeta
 
-  if(any(exempt))
-    warning(sprintf(paste0("filterSamples: %d non-study injection(s) exceed ",
-                           "max_na = %g and were KEPT (%s). Exclude them in ",
-                           "the sample metadata if they really failed."),
-                    sum(exempt), max_na,
-                    paste(utils::head(rownames(X)[exempt], 5), collapse = ", ")))
+  if(any(exempt)){
+    fmt <- paste0("filterSamples: %d non-study injection(s) exceed ",
+                  "max_na = %g and were KEPT (%s). Exclude them in ",
+                  "the sample metadata if they really failed.")
+    which_ones <- paste(utils::head(rownames(X)[exempt], 5), collapse = ", ")
+    warning(sprintf(fmt, sum(exempt), max_na, which_ones))
+  }
 
   if(!any(to_drop)){
     message(sprintf("[filterSamples] all %d injections retained (max_na = %g).",
@@ -103,7 +107,7 @@ filterSamples = function(de, max_na = 0.8,
                                rownames(X)[to_drop],
                                100 * na_frac[to_drop]), collapse = ", "))
 
-  keep = !to_drop
+  keep <- !to_drop
   struct::DatasetExperiment(
     data          = X[keep, , drop = FALSE],
     sample_meta   = de$sample_meta[keep, , drop = FALSE],

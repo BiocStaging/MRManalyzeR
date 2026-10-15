@@ -83,17 +83,18 @@
 #' out$data
 #' @family peak-matrix processing
 #' @export
-correctBatch = function(de, qc_label = "QC", factor_name = "Sample_type",
+correctBatch <- function(de, qc_label = "QC", factor_name = "Sample_type",
                          batch_head = "Chrom_Batch",
                          check_factor = NULL, min_ref = 2,
                          feature_col = NULL){
+  .check_de(de, "correctBatch")
 
-  smeta = as.data.frame(de$sample_meta)
+  smeta <- as.data.frame(de$sample_meta)
   # Headings are stored in make.names() form (Chrom-Batch -> Chrom.Batch).
-  factor_name = .resolve_meta_col(factor_name, smeta) %||% factor_name
-  batch_head  = .resolve_meta_col(batch_head,  smeta) %||% batch_head
+  factor_name <- .resolve_meta_col(factor_name, smeta) %||% factor_name
+  batch_head <- .resolve_meta_col(batch_head,  smeta) %||% batch_head
   if(!is.null(check_factor))
-    check_factor = .resolve_meta_col(check_factor, smeta) %||% check_factor
+    check_factor <- .resolve_meta_col(check_factor, smeta) %||% check_factor
   for(h in c(factor_name, batch_head)){
     if(!h %in% colnames(smeta))
       stop(sprintf("[correctBatch] '%s' is not a sample_meta column.", h))
@@ -103,8 +104,8 @@ correctBatch = function(de, qc_label = "QC", factor_name = "Sample_type",
   # empty label cannot be scaled against anything, and leaving it as measured
   # beside corrected neighbours would put it on a different footing - so the
   # run stops and names it.
-  batch    = as.character(smeta[[batch_head]])
-  no_batch = is.na(batch) | !nzchar(trimws(batch))
+  batch   <- as.character(smeta[[batch_head]])
+  no_batch <- is.na(batch) | !nzchar(trimws(batch))
   if(any(no_batch))
     stop(sprintf(
       "[correctBatch] %d injection(s) have no '%s' value: %s%s. Give each a batch, or set Include to NO for injections that should not be processed.",
@@ -112,7 +113,7 @@ correctBatch = function(de, qc_label = "QC", factor_name = "Sample_type",
       paste(utils::head(rownames(smeta)[no_batch], 5), collapse = ", "),
       if(sum(no_batch) > 5) sprintf(" and %d more", sum(no_batch) - 5) else ""),
       call. = FALSE)
-  is_ref = smeta[[factor_name]] %in% qc_label
+  is_ref <- smeta[[factor_name]] %in% qc_label
 
   if(!any(is_ref))
     stop(sprintf(
@@ -121,8 +122,8 @@ correctBatch = function(de, qc_label = "QC", factor_name = "Sample_type",
 
   # Every batch needs enough reference samples for its median to mean
   # anything; a batch with one is scaled by a single observation.
-  per_batch = table(batch[is_ref])
-  thin = setdiff(unique(batch), names(per_batch)[per_batch >= min_ref])
+  per_batch <- table(batch[is_ref])
+  thin <- setdiff(unique(batch), names(per_batch)[per_batch >= min_ref])
   if(length(thin))
     stop(sprintf(
       "[correctBatch] batch(es) %s have fewer than %d reference samples (%s in {%s}). Add reference samples, lower min_ref, or use a reference present in every batch.",
@@ -135,9 +136,9 @@ correctBatch = function(de, qc_label = "QC", factor_name = "Sample_type",
       warning(sprintf("[correctBatch] check_factor '%s' is not a sample_meta column; confounding check skipped.",
                       check_factor))
     } else {
-      lv = table(batch[is_ref],
+      lv <- table(batch[is_ref],
                  as.character(smeta[[check_factor]][is_ref]))
-      n_lv = rowSums(lv > 0)
+      n_lv <- rowSums(lv > 0)
       if(ncol(lv) > 1 && any(n_lv < 2))
         warning(sprintf(
           "[correctBatch] batch(es) %s contain only one level of '%s' among the reference samples, so batch is confounded with it. Median-ratio correction will remove that difference along with the technical shift. Use pooled QCs as the reference if you have them.",
@@ -146,39 +147,39 @@ correctBatch = function(de, qc_label = "QC", factor_name = "Sample_type",
     }
   }
 
-  X  = as.data.frame(de$data)
-  vm = as.data.frame(de$variable_meta)
+  X <- as.data.frame(de$data)
+  vm <- as.data.frame(de$variable_meta)
 
   # --- which compounds ------------------------------------------------------
-  selected = rep(TRUE, ncol(X))
+  selected <- rep(TRUE, ncol(X))
   if(!is.null(feature_col)){
-    col = .resolve_meta_col(feature_col, vm)
+    col <- .resolve_meta_col(feature_col, vm)
     if(is.null(col))
       stop(sprintf(
         "[correctBatch] feature_col '%s' is not a variable_meta column.",
         feature_col), call. = FALSE)
-    flag = .yes_no(vm[[col]][match(colnames(X), rownames(vm))], feature_col)
+    flag <- .yes_no(vm[[col]][match(colnames(X), rownames(vm))], feature_col)
     if(any(is.na(flag)))
       warning(sprintf(
         "[correctBatch] %d compound(s) have no YES/NO in '%s' and were left uncorrected: %s",
         sum(is.na(flag)), feature_col,
         paste(utils::head(colnames(X)[is.na(flag)], 5), collapse = ", ")),
         call. = FALSE)
-    selected = flag %in% TRUE
+    selected <- flag %in% TRUE
   }
 
   # --- medians --------------------------------------------------------------
   # A missing value counts as zero in every median - see Details.
-  med0 = function(rows)
+  med0 <- function(rows)
     vapply(X[rows, , drop = FALSE], function(v){
-      v[is.na(v)] = 0
+      v[is.na(v)] <- 0
       stats::median(v)
     }, numeric(1))
 
-  batches = unique(batch)
-  grand   = med0(is_ref)
+  batches <- unique(batch)
+  grand  <- med0(is_ref)
   # compounds x batches
-  bmed = matrix(vapply(batches, function(b) med0(batch == b & is_ref),
+  bmed <- matrix(vapply(batches, function(b) med0(batch == b & is_ref),
                        numeric(ncol(X))),
                 nrow = ncol(X), dimnames = list(colnames(X), batches))
 
@@ -186,19 +187,19 @@ correctBatch = function(de, qc_label = "QC", factor_name = "Sample_type",
   # some batches but not others would leave its batches on different
   # footings - the problem this step exists to remove - so one failing batch
   # means the compound is corrected in none.
-  bad_grand = !(is.finite(grand) & grand > 0)
-  bad_batch = !(is.finite(bmed) & bmed > 0)
-  failed    = selected & (bad_grand | rowSums(bad_batch) > 0)
-  correct   = selected & !failed
+  bad_grand <- !(is.finite(grand) & grand > 0)
+  bad_batch <- !(is.finite(bmed) & bmed > 0)
+  failed   <- selected & (bad_grand | rowSums(bad_batch) > 0)
+  correct  <- selected & !failed
 
   # --- correction -----------------------------------------------------------
   for(b in batches){
-    in_b = which(batch == b)
+    in_b <- which(batch == b)
     for(j in which(correct))
-      X[[j]][in_b] = X[[j]][in_b] / (bmed[j, b] / grand[j])
+      X[[j]][in_b] <- X[[j]][in_b] / (bmed[j, b] / grand[j])
   }
 
-  cause = vapply(seq_len(ncol(X)), function(j){
+  cause <- vapply(seq_len(ncol(X)), function(j){
     if(!failed[j]) return("")
     paste(c(if(bad_grand[j]) "grand median", batches[bad_batch[j, ]]),
           collapse = ", ")
@@ -219,12 +220,14 @@ correctBatch = function(de, qc_label = "QC", factor_name = "Sample_type",
       call. = FALSE)
   }
 
-  key = match(rownames(vm), colnames(X))
-  vm$batch_corrected   = correct[key]
-  vm$bc_failed_batches = cause[key]
+  .warn_overwrite(vm, c("batch_corrected", "bc_failed_batches"),
+                  "correctBatch")
+  key <- match(rownames(vm), colnames(X))
+  vm$batch_corrected  <- correct[key]
+  vm$bc_failed_batches <- cause[key]
 
-  de$data          = X
-  de$variable_meta = vm
+  de$data         <- X
+  de$variable_meta <- vm
   de
 }
 
@@ -236,13 +239,13 @@ correctBatch = function(de, qc_label = "QC", factor_name = "Sample_type",
 #'   Any other value stops, naming it.
 #' @keywords internal
 #' @noRd
-.yes_no = function(x, col){
+.yes_no <- function(x, col){
   if(is.logical(x)) return(x)
-  v   = tolower(trimws(as.character(x)))
-  out = rep(NA, length(v))
-  out[v %in% c("yes", "true")] = TRUE
-  out[v %in% c("no", "false")] = FALSE
-  bad = !is.na(v) & nzchar(v) & is.na(out)
+  v  <- tolower(trimws(as.character(x)))
+  out <- rep(NA, length(v))
+  out[v %in% c("yes", "true")] <- TRUE
+  out[v %in% c("no", "false")] <- FALSE
+  bad <- !is.na(v) & nzchar(v) & is.na(out)
   if(any(bad))
     stop(sprintf("[batch correction] '%s' must hold YES or NO; found: %s.",
                  col, paste(sprintf("'%s'", unique(x[bad])), collapse = ", ")),

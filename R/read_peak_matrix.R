@@ -38,15 +38,15 @@
 #' readPeakMatrix(m)
 #' @family data parse
 #' @export
-readPeakMatrix = function(x, data_tab_names = "matrix_data",
+readPeakMatrix <- function(x, data_tab_names = "matrix_data",
                             id_col = NULL,
                             orientation = c("samples_rows",
                                             "samples_cols")){
 
-  orientation = match.arg(orientation)
+  orientation <- match.arg(orientation)
 
-  raw = if(is.character(x) && length(x) == 1L){
-    parts = lapply(data_tab_names, function(sh)
+  raw <- if(is.character(x) && length(x) == 1L){
+    parts <- lapply(data_tab_names, function(sh)
       openxlsx::read.xlsx(x, sheet = sh))
     do.call(rbind, parts)
   } else {
@@ -59,19 +59,19 @@ readPeakMatrix = function(x, data_tab_names = "matrix_data",
   # check.names = FALSE throughout: compound names routinely contain brackets,
   # parentheses and commas that make.names() would mangle, breaking every
   # downstream match against feature_metadata.
-  raw = as.data.frame(raw, check.names = FALSE)
-  idc = if(is.null(id_col)) 1L else match(id_col, colnames(raw))
+  raw <- as.data.frame(raw, check.names = FALSE)
+  idc <- if(is.null(id_col)) 1L else match(id_col, colnames(raw))
   if(is.na(idc))
     stop(sprintf("[readPeakMatrix] id_col '%s' is not a column. Present: %s.",
                  id_col, paste(colnames(raw), collapse = ", ")))
 
-  ids = as.character(raw[[idc]])
-  mat = as.matrix(raw[, -idc, drop = FALSE])
-  rownames(mat) = ids
+  ids <- as.character(raw[[idc]])
+  mat <- as.matrix(raw[, -idc, drop = FALSE])
+  rownames(mat) <- ids
 
   if(orientation == "samples_cols"){
-    mat = t(mat)
-    ids = rownames(mat)
+    mat <- t(mat)
+    ids <- rownames(mat)
   }
 
   if(anyDuplicated(ids))
@@ -80,9 +80,9 @@ readPeakMatrix = function(x, data_tab_names = "matrix_data",
 
   # Sentinel non-detect tokens vary by vendor; resolve the common ones to NA
   # rather than letting them coerce the whole column to character.
-  sentinel = c("#N/A", "N/A", "NA", "n.d.", "ND", "nd", "-", "", "NaN",
+  sentinel <- c("#N/A", "N/A", "NA", "n.d.", "ND", "nd", "-", "", "NaN",
                "Inf", "-Inf")
-  mat[mat %in% sentinel] = NA
+  mat[mat %in% sentinel] <- NA
   suppressWarnings(mode(mat) <- "numeric")
 
   as.data.frame(mat, stringsAsFactors = FALSE, check.names = FALSE)

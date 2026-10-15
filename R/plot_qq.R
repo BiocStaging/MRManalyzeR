@@ -31,23 +31,24 @@
 #' plotQQ(de, "Analyte_02", transform = "log2", levels = "Sample")
 #' @family QC check
 #' @export
-plotQQ = function(de, compound, transform = c("none", "log2", "sqrt"),
+plotQQ <- function(de, compound, transform = c("none", "log2", "sqrt"),
                    sample_type_head = "Sample_type",
                    levels           = NULL,
                    value_label      = "value"){
+  .check_de(de, "plotQQ")
 
-  transform = match.arg(transform)
-  dm    = as.data.frame(de$data)
-  smeta = as.data.frame(de$sample_meta)
+  transform <- match.arg(transform)
+  dm   <- as.data.frame(de$data)
+  smeta <- as.data.frame(de$sample_meta)
   if(!compound %in% colnames(dm))
     stop(sprintf("[plotQQ] '%s' is not a feature in this dataset.", compound))
 
-  keep = if(is.null(levels) || !sample_type_head %in% colnames(smeta))
+  keep <- if(is.null(levels) || !sample_type_head %in% colnames(smeta))
     rep(TRUE, nrow(dm)) else smeta[[sample_type_head]] %in% levels
 
-  v = dm[keep, compound]
-  v = v[!is.na(v)]
-  v = switch(transform,
+  v <- dm[keep, compound]
+  v <- v[!is.na(v)]
+  v <- switch(transform,
              log2 = suppressWarnings(log2(v + 1)),
              sqrt = suppressWarnings(sqrt(pmax(v, 0))),
              v)
@@ -58,15 +59,15 @@ plotQQ = function(de, compound, transform = c("none", "log2", "sqrt"),
                "%s - too few non-NA values (n = %d)", compound, length(v))))
 
   # Shapiro-Wilk is only defined for 3 <= n <= 5000.
-  sw_lbl = ""
+  sw_lbl <- ""
   if(length(v) <= 5000){
-    sw = tryCatch(stats::shapiro.test(v), error = function(e) NULL)
+    sw <- tryCatch(stats::shapiro.test(v), error = function(e) NULL)
     if(!is.null(sw))
-      sw_lbl = sprintf("  Shapiro-Wilk W = %.3f, p = %s", sw$statistic,
+      sw_lbl <- sprintf("  Shapiro-Wilk W = %.3f, p = %s", sw$statistic,
                        format.pval(sw$p.value, digits = 3, eps = 1e-4))
   }
 
-  y_lab = switch(transform,
+  y_lab <- switch(transform,
                  log2 = sprintf("log2(%s + 1) sample quantiles", value_label),
                  sqrt = sprintf("sqrt(%s) sample quantiles", value_label),
                  sprintf("%s sample quantiles", value_label))

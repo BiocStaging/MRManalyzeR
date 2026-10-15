@@ -33,7 +33,7 @@
 #' plotDrift(de, "Analyte_02", value_label = "ng/mL")
 #' @family QC check
 #' @export
-plotDrift = function(de, compound,
+plotDrift <- function(de, compound,
                       sample_type_head     = "Sample_type",
                       levels               = NULL,
                       injection_order_head = "Injection_order",
@@ -41,23 +41,24 @@ plotDrift = function(de, compound,
                       value_label          = "value",
                       yaxis_quant          = 0.95,
                       yaxis_scalar         = 1.3){
+  .check_de(de, "plotDrift")
 
-  dm    = as.data.frame(de$data)
-  smeta = as.data.frame(de$sample_meta)
+  dm   <- as.data.frame(de$data)
+  smeta <- as.data.frame(de$sample_meta)
   if(!compound %in% colnames(dm))
     stop(sprintf("[plotDrift] '%s' is not a feature in this dataset.",
                  compound))
 
-  keep = if(is.null(levels) || !sample_type_head %in% colnames(smeta))
+  keep <- if(is.null(levels) || !sample_type_head %in% colnames(smeta))
     rep(TRUE, nrow(dm)) else smeta[[sample_type_head]] %in% levels
 
   # A text injection order (a formula returning "_48", say) would become NA
   # and every point would silently drop out of the plot.
-  ord = which(keep)
+  ord <- which(keep)
   if(injection_order_head %in% colnames(smeta)){
-    raw = smeta[[injection_order_head]][keep]
-    ord = suppressWarnings(as.numeric(as.character(raw)))
-    bad = is.na(ord) & !is.na(raw)
+    raw <- smeta[[injection_order_head]][keep]
+    ord <- suppressWarnings(as.numeric(as.character(raw)))
+    bad <- is.na(ord) & !is.na(raw)
     if(any(bad))
       stop(sprintf("[plotDrift] '%s' must be numeric; found: %s.",
                    injection_order_head,
@@ -66,7 +67,7 @@ plotDrift = function(de, compound,
                          collapse = ", ")), call. = FALSE)
   }
 
-  df = data.frame(
+  df <- data.frame(
     value = dm[keep, compound],
     order = ord,
     type  = if(sample_type_head %in% colnames(smeta))
@@ -75,11 +76,11 @@ plotDrift = function(de, compound,
       as.character(smeta[[sample_id_head]][keep]) else rownames(dm)[keep],
     stringsAsFactors = FALSE)
 
-  df$tooltip = sprintf("%s: %s<br>%s: %.3g<br>%s: %s",
+  df$tooltip <- sprintf("%s: %s<br>%s: %.3g<br>%s: %s",
                        sample_id_head %||% "sample", df$id,
                        value_label, df$value, sample_type_head, df$type)
 
-  cap = stats::quantile(df$value, probs = yaxis_quant, na.rm = TRUE) *
+  cap <- stats::quantile(df$value, probs = yaxis_quant, na.rm = TRUE) *
         yaxis_scalar
 
   ggplot2::ggplot(df, ggplot2::aes(.data$order, .data$value)) +

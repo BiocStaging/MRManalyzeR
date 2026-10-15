@@ -48,18 +48,19 @@
 #' runStats(de, params)$stats
 #' @family stats
 #' @export
-runStats = function(de, st_params){
+runStats <- function(de, st_params){
+  .check_de(de, "runStats")
 
-  comparisons   = .section_entries(st_params$comparisons,   "comparisons")
-  correlations  = .section_entries(st_params$correlations,  "correlations")
-  linear_models = .section_entries(st_params$linear_models, "linear_models")
+  comparisons  <- .section_entries(st_params$comparisons,   "comparisons")
+  correlations <- .section_entries(st_params$correlations,  "correlations")
+  linear_models <- .section_entries(st_params$linear_models, "linear_models")
 
   # p-value adjustment is hard-coded to BH (= FDR). Bonferroni / others
   # were dropped from the YAML for simplicity.
-  p_adjust      = "BH"
-  sig_threshold = st_params$sig_threshold %||% 0.05
+  p_adjust     <- "BH"
+  sig_threshold <- st_params$sig_threshold %||% 0.05
 
-  ion_entries = .ion_entries(st_params$ion_ratios)
+  ion_entries <- .ion_entries(st_params$ion_ratios)
 
   list(
     stats         = .run_comparisons(de, comparisons,   p_adjust, sig_threshold),
@@ -91,35 +92,35 @@ runStats = function(de, st_params){
 #' @return `df` with `adjust_family`, `p_adj` and `significant` filled in.
 #' @keywords internal
 #' @noRd
-.adjust_within = function(df, keys, p_adjust, sig_threshold){
+.adjust_within <- function(df, keys, p_adjust, sig_threshold){
   if(nrow(df) == 0) return(df)
-  fam = do.call(paste, c(df[keys], sep = " | "))
-  df$adjust_family = fam
-  df$p_adj = stats::ave(df$p_value, fam, FUN = function(p)
+  fam <- do.call(paste, c(df[keys], sep = " | "))
+  df$adjust_family <- fam
+  df$p_adj <- stats::ave(df$p_value, fam, FUN = function(p)
     stats::p.adjust(p, method = p_adjust))
-  df$significant = df$p_adj < sig_threshold
+  df$significant <- df$p_adj < sig_threshold
   df
 }
 
 #' @keywords internal
 #' @noRd
-.run_comparisons = function(de, comparisons, p_adjust, sig_threshold){
+.run_comparisons <- function(de, comparisons, p_adjust, sig_threshold){
 
   if(length(comparisons) == 0)
     return(.empty_stats_df())
 
-  rows = lapply(comparisons, function(comp){
+  rows <- lapply(comparisons, function(comp){
     .run_one_comparison(de, comp, p_adjust, sig_threshold)
   })
 
-  out = dplyr::bind_rows(rows)
+  out <- dplyr::bind_rows(rows)
   # For `tukey` rows p_value is ALREADY adjusted across the pairwise
   # comparisons within a feature, by TukeyHSD() itself. p_adj then controls
   # the false discovery rate across features. Those are two different
   # families, so this is not a double correction of one family - but it is
   # conservative, because BH assumes p-values uniform under the null and
   # Tukey-adjusted values are not. Read p_adj on post-hoc rows accordingly.
-  out = .adjust_within(out, c("comparison", "method"), p_adjust,
+  out <- .adjust_within(out, c("comparison", "method"), p_adjust,
                        sig_threshold)
   out
 }
@@ -152,14 +153,14 @@ runStats = function(de, st_params){
 #' @return Numeric, or `NA` when either group has fewer than two values.
 #' @keywords internal
 #' @noRd
-.hedges_g = function(x1, x2){
-  x1 = x1[!is.na(x1)]; x2 = x2[!is.na(x2)]
-  n1 = length(x1); n2 = length(x2)
+.hedges_g <- function(x1, x2){
+  x1 <- x1[!is.na(x1)]; x2 <- x2[!is.na(x2)]
+  n1 <- length(x1); n2 <- length(x2)
   if(n1 < 2 || n2 < 2) return(NA_real_)
-  s_pool = sqrt(((n1 - 1) * stats::var(x1) + (n2 - 1) * stats::var(x2)) /
+  s_pool <- sqrt(((n1 - 1) * stats::var(x1) + (n2 - 1) * stats::var(x2)) /
                 (n1 + n2 - 2))
   if(!is.finite(s_pool) || s_pool == 0) return(NA_real_)
-  d = (mean(x2) - mean(x1)) / s_pool
+  d <- (mean(x2) - mean(x1)) / s_pool
   d * (1 - 3 / (4 * (n1 + n2) - 9))          # Hedges' correction
 }
 
@@ -173,11 +174,11 @@ runStats = function(de, st_params){
 #' @return Numeric, or `NA`.
 #' @keywords internal
 #' @noRd
-.cohens_dz = function(x1, x2){
-  d = x2 - x1
-  d = d[!is.na(d)]
+.cohens_dz <- function(x1, x2){
+  d <- x2 - x1
+  d <- d[!is.na(d)]
   if(length(d) < 2) return(NA_real_)
-  sdd = stats::sd(d)
+  sdd <- stats::sd(d)
   if(!is.finite(sdd) || sdd == 0) return(NA_real_)
   mean(d) / sdd
 }
@@ -192,7 +193,7 @@ runStats = function(de, st_params){
 #' @return Numeric, or `NA`.
 #' @keywords internal
 #' @noRd
-.rank_biserial_paired = function(V, n){
+.rank_biserial_paired <- function(V, n){
   if(is.null(V) || is.na(V) || n < 1) return(NA_real_)
   1 - 4 * unname(V) / (n * (n + 1))
 }
@@ -208,28 +209,28 @@ runStats = function(de, st_params){
 #' @return Numeric, or `NA`.
 #' @keywords internal
 #' @noRd
-.rank_biserial = function(W, n1, n2){
+.rank_biserial <- function(W, n1, n2){
   if(is.null(W) || is.na(W) || n1 < 1 || n2 < 1) return(NA_real_)
   1 - 2 * unname(W) / (n1 * n2)
 }
 
 #' @keywords internal
 #' @noRd
-.resolve_method = function(comp, ngrp, comp_name){
-  allowed = if(ngrp == 2) c("welch", "student", "wilcoxon")
+.resolve_method <- function(comp, ngrp, comp_name){
+  allowed <- if(ngrp == 2) c("welch", "student", "wilcoxon")
             else          c("anova", "kruskal")
-  m = comp$method
+  m <- comp$method
 
   if(is.null(m)){
-    m = allowed[1]
+    m <- allowed[1]
     message(sprintf(
       "[runStats] comparison '%s' has no method:; defaulting to '%s'. Set method: in the YAML to pre-specify the test.",
       comp_name, m))
     return(m)
   }
 
-  m = tolower(as.character(m)[1])
-  if(identical(m, "t_test") || identical(m, "t-test")) m = "welch"
+  m <- tolower(as.character(m)[1])
+  if(identical(m, "t_test") || identical(m, "t-test")) m <- "welch"
   if(!m %in% allowed)
     stop(sprintf(
       "[runStats] comparison '%s': method '%s' is not valid for %d groups. Use one of: %s.",
@@ -239,11 +240,11 @@ runStats = function(de, st_params){
 
 #' @keywords internal
 #' @noRd
-.run_one_comparison = function(de, comp, p_adjust, sig_threshold){
+.run_one_comparison <- function(de, comp, p_adjust, sig_threshold){
 
-  comp_name = comp$name %||% "unnamed_comparison"
-  factor_name = comp$compare$factor
-  levels_keep = comp$compare$levels
+  comp_name <- comp$name %||% "unnamed_comparison"
+  factor_name <- comp$compare$factor
+  levels_keep <- comp$compare$levels
   if(is.null(factor_name) || is.null(levels_keep))
     stop(sprintf("Comparison '%s': compare.factor and compare.levels required.", comp_name))
 
@@ -251,41 +252,41 @@ runStats = function(de, st_params){
   # restriction. subsetDataset() supports vector values via %in%, so we can pass
   # `levels_keep` directly. Doing it in one call avoids mutating the DE in
   # place (which trips SummarizedExperiment's assay-replacement check).
-  cond = comp$subset
-  cond = if(is.null(cond)) list() else as.list(cond)
+  cond <- comp$subset
+  cond <- if(is.null(cond)) list() else as.list(cond)
 
   if(!factor_name %in% colnames(de$sample_meta))
     stop(sprintf("Comparison '%s': factor '%s' not in sample_meta.",
                  comp_name, factor_name))
-  cond[[factor_name]] = levels_keep
-  de_sub = subsetDataset(de, conditions = cond)
+  cond[[factor_name]] <- levels_keep
+  de_sub <- subsetDataset(de, conditions = cond)
 
-  group = factor(de_sub$sample_meta[[factor_name]], levels = levels_keep)
+  group <- factor(de_sub$sample_meta[[factor_name]], levels = levels_keep)
   if(nlevels(droplevels(group)) < 2){
     warning(sprintf("Comparison '%s': fewer than 2 non-empty levels - skipped.",
                     comp_name))
     return(.empty_stats_df())
   }
 
-  data = de_sub$data
-  feats = colnames(data)
-  ngrp  = nlevels(droplevels(group))
+  data <- de_sub$data
+  feats <- colnames(data)
+  ngrp <- nlevels(droplevels(group))
 
-  method = .resolve_method(comp, ngrp, comp_name)
-  paired = isTRUE(comp$paired)
+  method <- .resolve_method(comp, ngrp, comp_name)
+  paired <- isTRUE(comp$paired)
 
-  subject = NULL
+  subject <- NULL
   if(paired){
     if(ngrp != 2)
       stop(sprintf("Comparison '%s': paired analysis needs exactly 2 levels.",
                    comp_name))
-    sub_col = comp$subject %||% stop(sprintf(
+    sub_col <- comp$subject %||% stop(sprintf(
       "Comparison '%s': paired: true also needs subject: naming the sample_meta column that pairs the observations.",
       comp_name))
     if(!sub_col %in% colnames(de_sub$sample_meta))
       stop(sprintf("Comparison '%s': subject column '%s' not in sample_meta.",
                    comp_name, sub_col))
-    subject = as.character(de_sub$sample_meta[[sub_col]])
+    subject <- as.character(de_sub$sample_meta[[sub_col]])
   }
 
   if(ngrp == 2){
@@ -298,22 +299,22 @@ runStats = function(de, st_params){
 
 #' @keywords internal
 #' @noRd
-.compare_two = function(comp_name, data, group, feats, levels_keep,
+.compare_two <- function(comp_name, data, group, feats, levels_keep,
                         method = "welch", subject = NULL){
-  g1 = levels_keep[1]; g2 = levels_keep[2]
-  i1 = which(group == g1); i2 = which(group == g2)
+  g1 <- levels_keep[1]; g2 <- levels_keep[2]
+  i1 <- which(group == g1); i2 <- which(group == g2)
 
   # Paired analysis needs the two vectors aligned subject by subject, and only
   # subjects measured in both conditions contribute. Dropping the unmatched
   # ones is the point of pairing: an unpaired test on the same data throws away
   # the very structure that makes it powerful.
-  paired = !is.null(subject)
+  paired <- !is.null(subject)
   if(paired){
-    s1 = subject[i1]; s2 = subject[i2]
+    s1 <- subject[i1]; s2 <- subject[i2]
     if(anyDuplicated(s1) || anyDuplicated(s2))
       stop(sprintf("Comparison '%s': subject values are not unique within a group, so observations cannot be paired.",
                    comp_name))
-    common = intersect(s1, s2)
+    common <- intersect(s1, s2)
     if(length(common) < 2)
       stop(sprintf("Comparison '%s': only %d subject(s) present in both groups.",
                    comp_name, length(common)))
@@ -321,23 +322,23 @@ runStats = function(de, st_params){
       message(sprintf(
         "[runStats] comparison '%s': %d subject(s) measured in both groups; unmatched observations dropped.",
         comp_name, length(common)))
-    i1 = i1[match(common, s1)]
-    i2 = i2[match(common, s2)]
+    i1 <- i1[match(common, s1)]
+    i2 <- i2[match(common, s2)]
   }
 
-  rows = lapply(feats, function(f){
-    x  = data[[f]]
-    x1 = x[i1]; x2 = x[i2]
-    n1 = sum(!is.na(x1)); n2 = sum(!is.na(x2))
-    m1 = mean(x1, na.rm = TRUE); m2 = mean(x2, na.rm = TRUE)
-    fc     = suppressWarnings(m2 / m1)
-    log2fc = suppressWarnings(log2(fc))
+  rows <- lapply(feats, function(f){
+    x <- data[[f]]
+    x1 <- x[i1]; x2 <- x[i2]
+    n1 <- sum(!is.na(x1)); n2 <- sum(!is.na(x2))
+    m1 <- mean(x1, na.rm = TRUE); m2 <- mean(x2, na.rm = TRUE)
+    fc    <- suppressWarnings(m2 / m1)
+    log2fc <- suppressWarnings(log2(fc))
 
     if(method == "wilcoxon"){
       # conf.int gives the Hodges-Lehmann location shift and its interval -
       # the non-parametric answer to "by how much", which a p-value alone
       # does not provide.
-      wt = tryCatch(stats::wilcox.test(x1, x2, exact = FALSE, conf.int = TRUE,
+      wt <- tryCatch(stats::wilcox.test(x1, x2, exact = FALSE, conf.int = TRUE,
                                        paired = paired),
                     error = function(e) NULL, warning = function(w) NULL)
       return(list(.row(
@@ -359,7 +360,7 @@ runStats = function(de, st_params){
                       else       "rank_biserial")))
     }
 
-    tt = tryCatch(stats::t.test(x1, x2, var.equal = method == "student",
+    tt <- tryCatch(stats::t.test(x1, x2, var.equal = method == "student",
                                 paired = paired),
                   error = function(e) NULL)
     list(.row(
@@ -387,31 +388,31 @@ runStats = function(de, st_params){
 
 #' @keywords internal
 #' @noRd
-.compare_many = function(comp_name, data, group, feats, levels_keep,
+.compare_many <- function(comp_name, data, group, feats, levels_keep,
                          method = "anova"){
 
   # Shared by both post-hoc paths: the per-pair descriptives.
-  pair_stats = function(x, g_a, g_b){
-    xa = x[group == g_a]; xb = x[group == g_b]
+  pair_stats <- function(x, g_a, g_b){
+    xa <- x[group == g_a]; xb <- x[group == g_b]
     list(xa = xa, xb = xb,
          na = sum(!is.na(xa)), nb = sum(!is.na(xb)),
          ma = mean(xa, na.rm = TRUE), mb = mean(xb, na.rm = TRUE))
   }
 
-  rows = lapply(feats, function(f){
-    x = data[[f]]
-    df_in = data.frame(value = x, grp = group)
-    n_tot = sum(!is.na(x))
-    k     = length(levels_keep)
+  rows <- lapply(feats, function(f){
+    x <- data[[f]]
+    df_in <- data.frame(value = x, grp = group)
+    n_tot <- sum(!is.na(x))
+    k    <- length(levels_keep)
 
     if(method == "kruskal"){
-      kw = tryCatch(stats::kruskal.test(value ~ grp, data = df_in),
+      kw <- tryCatch(stats::kruskal.test(value ~ grp, data = df_in),
                     error = function(e) NULL)
       # Epsilon-squared: H / (n - 1), the rank analogue of eta-squared.
-      eps = if(is.null(kw) || n_tot < 2) NA_real_
+      eps <- if(is.null(kw) || n_tot < 2) NA_real_
             else unname(kw$statistic) / (n_tot - 1)
 
-      global = list(.row(
+      global <- list(.row(
         comp_name, "kruskal", f, k, NA, NA, NA, NA, NA, NA,
         statistic = if(is.null(kw)) NA_real_ else unname(kw$statistic),
         df        = if(is.null(kw)) NA_character_ else as.character(kw$parameter),
@@ -424,24 +425,24 @@ runStats = function(de, st_params){
       # interval and effect size as the two-group path; the p-values are then
       # Holm-adjusted across the pairs of this feature, exactly as
       # pairwise.wilcox.test() would.
-      pairs = utils::combn(levels_keep, 2, simplify = FALSE)
-      raw   = numeric(length(pairs))
-      parts = vector("list", length(pairs))
+      pairs <- utils::combn(levels_keep, 2, simplify = FALSE)
+      raw  <- numeric(length(pairs))
+      parts <- vector("list", length(pairs))
 
       for(i in seq_along(pairs)){
-        g_a = pairs[[i]][1]; g_b = pairs[[i]][2]
-        ps  = pair_stats(x, g_a, g_b)
-        wt  = tryCatch(stats::wilcox.test(ps$xa, ps$xb, exact = FALSE,
+        g_a <- pairs[[i]][1]; g_b <- pairs[[i]][2]
+        ps <- pair_stats(x, g_a, g_b)
+        wt <- tryCatch(stats::wilcox.test(ps$xa, ps$xb, exact = FALSE,
                                           conf.int = TRUE),
                        error = function(e) NULL, warning = function(w) NULL)
-        raw[i]   = if(is.null(wt)) NA_real_ else wt$p.value
-        parts[[i]] = list(g_a = g_a, g_b = g_b, ps = ps, wt = wt)
+        raw[i]  <- if(is.null(wt)) NA_real_ else wt$p.value
+        parts[[i]] <- list(g_a = g_a, g_b = g_b, ps = ps, wt = wt)
       }
-      adj = stats::p.adjust(raw, method = "holm")
+      adj <- stats::p.adjust(raw, method = "holm")
 
-      ph_rows = lapply(seq_along(parts), function(i){
-        q = parts[[i]]; ps = q$ps; wt = q$wt
-        fc_pair = suppressWarnings(ps$mb / ps$ma)
+      ph_rows <- lapply(seq_along(parts), function(i){
+        q <- parts[[i]]; ps <- q$ps; wt <- q$wt
+        fc_pair <- suppressWarnings(ps$mb / ps$ma)
         .row(comp_name, "pairwise_wilcoxon", f, 2, q$g_a, q$g_b,
              ps$ma, ps$mb, fc_pair, suppressWarnings(log2(fc_pair)),
              statistic = if(is.null(wt)) NA_real_ else unname(wt$statistic),
@@ -460,34 +461,34 @@ runStats = function(de, st_params){
       return(c(global, ph_rows))
     }
 
-    av = tryCatch(stats::aov(value ~ grp, data = df_in), error = function(e) NULL)
-    sm = if(is.null(av)) NULL else summary(av)[[1]]
-    av_p = if(is.null(sm)) NA_real_ else sm[["Pr(>F)"]][1]
-    av_f = if(is.null(sm)) NA_real_ else sm[["F value"]][1]
-    av_df = if(is.null(sm)) NA_character_ else
+    av <- tryCatch(stats::aov(value ~ grp, data = df_in), error = function(e) NULL)
+    sm <- if(is.null(av)) NULL else summary(av)[[1]]
+    av_p <- if(is.null(sm)) NA_real_ else sm[["Pr(>F)"]][1]
+    av_f <- if(is.null(sm)) NA_real_ else sm[["F value"]][1]
+    av_df <- if(is.null(sm)) NA_character_ else
       sprintf("%d,%d", sm[["Df"]][1], sm[["Df"]][2])
     # Eta-squared: the share of total variance the grouping accounts for.
-    eta = if(is.null(sm)) NA_real_ else
+    eta <- if(is.null(sm)) NA_real_ else
       sm[["Sum Sq"]][1] / sum(sm[["Sum Sq"]])
 
-    global = list(.row(
+    global <- list(.row(
       comp_name, "anova", f, k, NA, NA, NA, NA, NA, NA,
       statistic = av_f, df = av_df, p_value = av_p,
       effect_size = eta, effect_type = "eta_squared"))
 
     # Tukey HSD post-hoc on the aov fit. Its p-values are already adjusted
     # across the pairs within this feature, and it supplies the interval.
-    tk_rows = list()
+    tk_rows <- list()
     if(!is.null(av)){
-      tk = tryCatch(stats::TukeyHSD(av), error = function(e) NULL)
+      tk <- tryCatch(stats::TukeyHSD(av), error = function(e) NULL)
       if(!is.null(tk)){
-        tk_df = as.data.frame(tk$grp)
-        tk_df$pair = rownames(tk_df)
-        tk_rows = lapply(seq_len(nrow(tk_df)), function(i){
-          pr = strsplit(tk_df$pair[i], "-", fixed = TRUE)[[1]]
-          g_a = pr[2]; g_b = pr[1]                  # TukeyHSD label = "B-A"
-          ps  = pair_stats(x, g_a, g_b)
-          fc_pair = suppressWarnings(ps$mb / ps$ma)
+        tk_df <- as.data.frame(tk$grp)
+        tk_df$pair <- rownames(tk_df)
+        tk_rows <- lapply(seq_len(nrow(tk_df)), function(i){
+          pr <- strsplit(tk_df$pair[i], "-", fixed = TRUE)[[1]]
+          g_a <- pr[2]; g_b <- pr[1]                  # TukeyHSD label = "B-A"
+          ps <- pair_stats(x, g_a, g_b)
+          fc_pair <- suppressWarnings(ps$mb / ps$ma)
           .row(comp_name, "tukey", f, 2, g_a, g_b, ps$ma, ps$mb,
                fc_pair, suppressWarnings(log2(fc_pair)),
                statistic = tk_df$diff[i],
@@ -514,30 +515,30 @@ runStats = function(de, st_params){
 
 #' @keywords internal
 #' @noRd
-.run_correlations = function(de, correlations, p_adjust, sig_threshold){
+.run_correlations <- function(de, correlations, p_adjust, sig_threshold){
   if(length(correlations) == 0)
     return(.empty_corr_df())
 
-  rows = lapply(correlations, function(corr){
-    name    = corr$name    %||% "unnamed_correlation"
-    methods = corr$methods %||% c("pearson", "spearman")
+  rows <- lapply(correlations, function(corr){
+    name   <- corr$name    %||% "unnamed_correlation"
+    methods <- corr$methods %||% c("pearson", "spearman")
 
     # Accept either `subsets:` (plural list) or `subset:` (singular, legacy).
-    subsets = corr$subsets
+    subsets <- corr$subsets
     if(is.null(subsets)){
-      if(is.null(corr$subset)) subsets = list(list())   # one analysis on all samples
-      else                     subsets = list(as.list(corr$subset))
+      if(is.null(corr$subset)) subsets <- list(list())   # one analysis on all samples
+      else                     subsets <- list(as.list(corr$subset))
     }
 
-    include_self = isTRUE(corr$include_self %||% FALSE)
+    include_self <- isTRUE(corr$include_self %||% FALSE)
 
-    per_subset = lapply(subsets, function(sub){
-      sub_lab = if(length(sub) == 0) "all"
+    per_subset <- lapply(subsets, function(sub){
+      sub_lab <- if(length(sub) == 0) "all"
                 else paste(sprintf("%s=%s", names(sub), unlist(sub)),
                            collapse = ", ")
 
-      de_sub = subsetDataset(de, conditions = if(length(sub)) as.list(sub) else NULL)
-      X = as.matrix(de_sub$data)
+      de_sub <- subsetDataset(de, conditions = if(length(sub)) as.list(sub) else NULL)
+      X <- as.matrix(de_sub$data)
 
       if(ncol(X) < 2 || nrow(X) < 3){
         warning(sprintf("Correlation '%s' / %s: insufficient data (n=%d, features=%d).",
@@ -545,7 +546,7 @@ runStats = function(de, st_params){
         return(.empty_corr_df())
       }
 
-      per_method = lapply(methods, function(m){
+      per_method <- lapply(methods, function(m){
         .pairwise_cor_long(X, method = m, name = name, sub_lab = sub_lab,
                            include_self = include_self)
       })
@@ -558,7 +559,7 @@ runStats = function(de, st_params){
   # One family per named analysis x subset x method: a Pearson and a Spearman
   # run over the same pairs are two answers to one question, not twice the
   # multiple testing.
-  out = .adjust_within(dplyr::bind_rows(rows),
+  out <- .adjust_within(dplyr::bind_rows(rows),
                        c("correlation", "subset", "method"),
                        p_adjust, sig_threshold)
   out
@@ -592,48 +593,48 @@ runStats = function(de, st_params){
 #'   t-statistic for Pearson and Spearman's S for Spearman.
 #' @keywords internal
 #' @noRd
-.pairwise_cor_long = function(X, method, name, sub_lab,
+.pairwise_cor_long <- function(X, method, name, sub_lab,
                               include_self = FALSE){
 
-  r_mat = suppressWarnings(stats::cor(X, use = "pairwise.complete.obs",
+  r_mat <- suppressWarnings(stats::cor(X, use = "pairwise.complete.obs",
                                       method = method))
 
   # Per-pair sample count (handles the NA pattern)
-  ok    = !is.na(X)
-  n_mat = crossprod(ok)
+  ok   <- !is.na(X)
+  n_mat <- crossprod(ok)
 
-  feats = colnames(X)
-  idx   = which(lower.tri(r_mat, diag = include_self), arr.ind = TRUE)
+  feats <- colnames(X)
+  idx  <- which(lower.tri(r_mat, diag = include_self), arr.ind = TRUE)
 
   if(identical(method, "pearson")){
-    denom = 1 - r_mat^2
-    denom[denom <= 0] = NA_real_
-    t_mat = r_mat * sqrt((n_mat - 2) / denom)
-    p_mat = 2 * stats::pt(-abs(t_mat), df = n_mat - 2)
-    diag(p_mat) = NA_real_
-    stat = t_mat[idx]
-    pval = p_mat[idx]
+    denom <- 1 - r_mat^2
+    denom[denom <= 0] <- NA_real_
+    t_mat <- r_mat * sqrt((n_mat - 2) / denom)
+    p_mat <- 2 * stats::pt(-abs(t_mat), df = n_mat - 2)
+    diag(p_mat) <- NA_real_
+    stat <- t_mat[idx]
+    pval <- p_mat[idx]
   } else {
-    res = vapply(seq_len(nrow(idx)), function(k){
-      i = idx[k, 1]; j = idx[k, 2]
+    res <- vapply(seq_len(nrow(idx)), function(k){
+      i <- idx[k, 1]; j <- idx[k, 2]
       if(i == j) return(c(NA_real_, NA_real_))
-      keep = !is.na(X[, i]) & !is.na(X[, j])
+      keep <- !is.na(X[, i]) & !is.na(X[, j])
       if(sum(keep) < 3) return(c(NA_real_, NA_real_))
-      ct = tryCatch(suppressWarnings(
+      ct <- tryCatch(suppressWarnings(
              stats::cor.test(X[keep, i], X[keep, j], method = method)),
              error = function(e) NULL)
       if(is.null(ct)) return(c(NA_real_, NA_real_))
       c(unname(ct$statistic), ct$p.value)
     }, numeric(2))
-    stat = res[1, ]
-    pval = res[2, ]
+    stat <- res[1, ]
+    pval <- res[2, ]
   }
 
   # With fewer than three shared samples a correlation is +/-1 or undefined
   # by construction, not an estimate: left out rather than drawn as perfect.
-  thin = n_mat[idx] < 3
-  est  = r_mat[idx]
-  est[thin] = NA_real_; stat[thin] = NA_real_; pval[thin] = NA_real_
+  thin <- n_mat[idx] < 3
+  est <- r_mat[idx]
+  est[thin] <- NA_real_; stat[thin] <- NA_real_; pval[thin] <- NA_real_
 
   data.frame(
     correlation = name,
@@ -653,25 +654,25 @@ runStats = function(de, st_params){
 
 #' @keywords internal
 #' @noRd
-.run_linear_models = function(de, linear_models, p_adjust, sig_threshold){
+.run_linear_models <- function(de, linear_models, p_adjust, sig_threshold){
   if(length(linear_models) == 0)
     return(.empty_lm_df())
 
-  rows = lapply(linear_models, function(mod){
-    name = mod$name %||% "unnamed_model"
-    rhs  = mod$formula %||% stop(sprintf("Linear model '%s': `formula` required.", name))
-    cond = mod$subset; if(!is.null(cond)) cond = as.list(cond)
-    de_sub = subsetDataset(de, conditions = cond)
+  rows <- lapply(linear_models, function(mod){
+    name <- mod$name %||% "unnamed_model"
+    rhs <- mod$formula %||% stop(sprintf("Linear model '%s': `formula` required.", name))
+    cond <- mod$subset; if(!is.null(cond)) cond <- as.list(cond)
+    de_sub <- subsetDataset(de, conditions = cond)
 
-    feats = colnames(de_sub$data)
-    smeta = de_sub$sample_meta
+    feats <- colnames(de_sub$data)
+    smeta <- de_sub$sample_meta
 
-    inner = lapply(feats, function(f){
-      df_in = cbind(.feature = de_sub$data[[f]], smeta)
-      fm = stats::as.formula(paste(".feature", rhs))
-      fit = tryCatch(stats::lm(fm, data = df_in), error = function(e) NULL)
+    inner <- lapply(feats, function(f){
+      df_in <- cbind(.feature = de_sub$data[[f]], smeta)
+      fm <- stats::as.formula(paste(".feature", rhs))
+      fit <- tryCatch(stats::lm(fm, data = df_in), error = function(e) NULL)
       if(is.null(fit)) return(NULL)
-      co = tryCatch(stats::coef(summary(fit)), error = function(e) NULL)
+      co <- tryCatch(stats::coef(summary(fit)), error = function(e) NULL)
       if(is.null(co)) return(NULL)
 
       # ---- friendlier term labels (S9) ----
@@ -679,8 +680,8 @@ runStats = function(de, st_params){
       # Rename to make the reference level explicit:
       #   "(Intercept)"            -> "Intercept (reference: Treatment=Ctrl, Sex=Female)"
       #   "TreatmentHDM_Curdlan"   -> "Treatment: HDM_Curdlan (vs Ctrl)"
-      raw_terms = rownames(co)
-      term_labels = .pretty_lm_terms(raw_terms, fit, smeta)
+      raw_terms <- rownames(co)
+      term_labels <- .pretty_lm_terms(raw_terms, fit, smeta)
 
       data.frame(
         model      = name,
@@ -700,7 +701,7 @@ runStats = function(de, st_params){
 
   # One family per model term, across features: the question asked of a
   # treatment coefficient is not the question asked of the intercept.
-  out = .adjust_within(dplyr::bind_rows(rows), c("model", "term"),
+  out <- .adjust_within(dplyr::bind_rows(rows), c("model", "term"),
                        p_adjust, sig_threshold)
   out
 }
@@ -710,7 +711,7 @@ runStats = function(de, st_params){
 
 #' @keywords internal
 #' @noRd
-.empty_stats_df = function() data.frame(
+.empty_stats_df <- function() data.frame(
   comparison = character(), method = character(), feature = character(),
   n_groups = integer(), group1 = character(), group2 = character(),
   n_g1 = integer(), n_g2 = integer(),
@@ -726,7 +727,7 @@ runStats = function(de, st_params){
 
 #' @keywords internal
 #' @noRd
-.empty_corr_df = function() data.frame(
+.empty_corr_df <- function() data.frame(
   correlation = character(), subset = character(), method = character(),
   feature_a = character(), feature_b = character(), n = integer(),
   estimate = numeric(), statistic = numeric(),
@@ -737,7 +738,7 @@ runStats = function(de, st_params){
 
 #' @keywords internal
 #' @noRd
-.empty_lm_df = function() data.frame(
+.empty_lm_df <- function() data.frame(
   model = character(), formula = character(), feature = character(),
   term = character(), term_raw = character(),
   estimate = numeric(), std_error = numeric(), statistic = numeric(),
@@ -754,23 +755,23 @@ runStats = function(de, st_params){
 #'  "SexMale:TreatmentHDM_Curdlan" -> kept as-is (interaction); doc'd elsewhere
 #' @keywords internal
 #' @noRd
-.pretty_lm_terms = function(raw_terms, fit, smeta){
+.pretty_lm_terms <- function(raw_terms, fit, smeta){
   # Pull factor reference levels from the model frame xlevels
-  xlev = tryCatch(fit$xlevels, error = function(e) list())
-  ref_levels = vapply(names(xlev), function(v) xlev[[v]][1], character(1))
-  names(ref_levels) = names(xlev)
+  xlev <- tryCatch(fit$xlevels, error = function(e) list())
+  ref_levels <- vapply(names(xlev), function(v) xlev[[v]][1], character(1))
+  names(ref_levels) <- names(xlev)
 
   vapply(raw_terms, function(t){
     if(t == "(Intercept)"){
       if(length(ref_levels) == 0) return("Intercept")
-      ref_str = paste(sprintf("%s=%s", names(ref_levels), unname(ref_levels)),
+      ref_str <- paste(sprintf("%s=%s", names(ref_levels), unname(ref_levels)),
                       collapse = "; ")
       return(sprintf("Intercept (ref: %s)", ref_str))
     }
     # Try to peel "<factor><level>" off the start of the term
     for(v in names(ref_levels)){
       if(startsWith(t, v)){
-        lvl = sub(paste0("^", v), "", t)
+        lvl <- sub(paste0("^", v), "", t)
         # Skip pure numeric coefficients (continuous predictors)
         if(nzchar(lvl) && lvl %in% xlev[[v]])
           return(sprintf("%s: %s (vs %s)", v, lvl, ref_levels[[v]]))
@@ -796,7 +797,7 @@ runStats = function(de, st_params){
 #' caught rather than silently producing no results.
 #' @keywords internal
 #' @noRd
-.section_entries = function(section, section_name){
+.section_entries <- function(section, section_name){
   if(is.null(section)) return(list())
   if(!is.null(section$entries) || !is.null(section$enabled)){
     if(isFALSE(section$enabled)) return(list())
@@ -817,7 +818,7 @@ runStats = function(de, st_params){
 #' @return A list of ratio specs; empty when absent or disabled.
 #' @keywords internal
 #' @noRd
-.ion_entries = function(section){
+.ion_entries <- function(section){
   if(is.null(section)) return(list())
   if(isFALSE(section$enabled)) return(list())
   section$ratios %||% list()
@@ -825,7 +826,7 @@ runStats = function(de, st_params){
 
 #' @keywords internal
 #' @noRd
-.row = function(comp_name, method, feature, n_groups,
+.row <- function(comp_name, method, feature, n_groups,
                 group1, group2, mean_g1, mean_g2, FC, log2FC,
                 statistic, df, p_value,
                 n_g1 = NA_integer_, n_g2 = NA_integer_,
@@ -878,9 +879,9 @@ runStats = function(de, st_params){
 #' @return A long data frame, or a zero-row frame when no ratio is computable.
 #' @keywords internal
 #' @noRd
-.run_ion_ratios = function(de, ratios, comparisons, p_adjust = "BH"){
+.run_ion_ratios <- function(de, ratios, comparisons, p_adjust = "BH"){
 
-  empty = data.frame(ratio = character(0), numerator = character(0),
+  empty <- data.frame(ratio = character(0), numerator = character(0),
                      denominator = character(0), comparison = character(0),
                      sample = character(0), group = character(0),
                      value = numeric(0), method = character(0),
@@ -888,15 +889,15 @@ runStats = function(de, st_params){
                      p_adj = numeric(0), stringsAsFactors = FALSE)
   if(length(ratios) == 0) return(empty)
 
-  dm  = as.data.frame(de$data)
-  out = list()
+  dm <- as.data.frame(de$data)
+  out <- list()
 
   for(cfg in ratios){
-    num = as.character(cfg$num)
-    den = as.character(cfg$den)
-    lbl = as.character(cfg$label %||% paste0(num, " / ", den))
+    num <- as.character(cfg$num)
+    den <- as.character(cfg$den)
+    lbl <- as.character(cfg$label %||% paste0(num, " / ", den))
 
-    absent = setdiff(c(num, den), colnames(dm))
+    absent <- setdiff(c(num, den), colnames(dm))
     if(length(absent)){
       # Named, because a silent skip leaves an empty ion_ratios sheet with no
       # hint that a feature name - often a combine prefix - did not match.
@@ -908,11 +909,11 @@ runStats = function(de, st_params){
     }
 
     # Zero denominators give Inf; treat as missing rather than as a huge ratio.
-    val = as.numeric(dm[[num]]) / as.numeric(dm[[den]])
-    val[!is.finite(val)] = NA_real_
-    names(val) = rownames(dm)
+    val <- as.numeric(dm[[num]]) / as.numeric(dm[[den]])
+    val[!is.finite(val)] <- NA_real_
+    names(val) <- rownames(dm)
 
-    out[[length(out) + 1]] = data.frame(
+    out[[length(out) + 1]] <- data.frame(
       ratio = lbl, numerator = num, denominator = den,
       comparison = NA_character_, sample = rownames(dm),
       group = NA_character_, value = unname(val),
@@ -921,19 +922,19 @@ runStats = function(de, st_params){
 
     for(comp in comparisons){
       if(!isTRUE(comp$enabled %||% TRUE)) next
-      cond = if(is.null(comp$subset)) list() else as.list(comp$subset)
-      cond[[comp$compare$factor]] = comp$compare$levels
-      de_sub = tryCatch(subsetDataset(de, conditions = cond),
+      cond <- if(is.null(comp$subset)) list() else as.list(comp$subset)
+      cond[[comp$compare$factor]] <- comp$compare$levels
+      de_sub <- tryCatch(subsetDataset(de, conditions = cond),
                         error = function(e) NULL)
       if(is.null(de_sub) || nrow(as.data.frame(de_sub$sample_meta)) == 0) next
 
-      rn  = rownames(as.data.frame(de_sub$data))
-      v   = val[rn]
-      grp = factor(as.data.frame(de_sub$sample_meta)[[comp$compare$factor]],
+      rn <- rownames(as.data.frame(de_sub$data))
+      v  <- val[rn]
+      grp <- factor(as.data.frame(de_sub$sample_meta)[[comp$compare$factor]],
                    levels = comp$compare$levels)
 
-      ngrp = length(comp$compare$levels)
-      tst = tryCatch({
+      ngrp <- length(comp$compare$levels)
+      tst <- tryCatch({
         if(ngrp == 2)
           stats::wilcox.test(v[grp == comp$compare$levels[1]],
                              v[grp == comp$compare$levels[2]], exact = FALSE)
@@ -941,7 +942,7 @@ runStats = function(de, st_params){
           stats::kruskal.test(v, grp)
       }, error = function(e) NULL)
 
-      out[[length(out) + 1]] = data.frame(
+      out[[length(out) + 1]] <- data.frame(
         ratio = lbl, numerator = num, denominator = den,
         comparison = comp$name %||% "unnamed_comparison",
         sample = rn, group = as.character(grp), value = unname(v),
@@ -953,16 +954,16 @@ runStats = function(de, st_params){
   }
 
   if(length(out) == 0) return(empty)
-  res = dplyr::bind_rows(out)
+  res <- dplyr::bind_rows(out)
 
   # One adjustment across the distinct ratio x comparison tests, not across
   # the repeated per-sample rows that carry them.
-  keys = unique(res[!is.na(res$p_value), c("ratio", "comparison", "p_value")])
+  keys <- unique(res[!is.na(res$p_value), c("ratio", "comparison", "p_value")])
   if(nrow(keys)){
-    keys$adj = stats::p.adjust(keys$p_value, method = p_adjust)
-    idx = match(paste(res$ratio, res$comparison),
+    keys$adj <- stats::p.adjust(keys$p_value, method = p_adjust)
+    idx <- match(paste(res$ratio, res$comparison),
                 paste(keys$ratio, keys$comparison))
-    res$p_adj = keys$adj[idx]
+    res$p_adj <- keys$adj[idx]
   }
   res
 }

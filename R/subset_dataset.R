@@ -24,48 +24,49 @@
 #' subsetDataset(de, conditions = list(Group = "x"))
 #' @family peak-matrix processing
 #' @export
-subsetDataset = function(de, conditions = NULL, features = NULL,
+subsetDataset <- function(de, conditions = NULL, features = NULL,
                      drop_empty_features = TRUE){
+  .check_de(de, "subsetDataset")
 
-  smeta = de$sample_meta
-  data  = de$data
-  vmeta = de$variable_meta
+  smeta <- de$sample_meta
+  data <- de$data
+  vmeta <- de$variable_meta
 
   # --- Sample filter ------------------------------------------------------
-  keep_row = rep(TRUE, nrow(smeta))
+  keep_row <- rep(TRUE, nrow(smeta))
   if(length(conditions)){
     for(col in names(conditions)){
       if(!col %in% colnames(smeta))
         stop(sprintf("subsetDataset: column '%s' not in sample_meta.", col))
-      keep_row = keep_row & (smeta[[col]] %in% conditions[[col]])
+      keep_row <- keep_row & (smeta[[col]] %in% conditions[[col]])
     }
   }
 
-  smeta_out = smeta[keep_row, , drop = FALSE]
+  smeta_out <- smeta[keep_row, , drop = FALSE]
   if(nrow(smeta_out) == 0)
     warning("subsetDataset: subset produced 0 samples.")
 
-  data_out  = data[keep_row, , drop = FALSE]
+  data_out <- data[keep_row, , drop = FALSE]
 
   # --- Feature filter -----------------------------------------------------
   if(!is.null(features)){
-    miss = setdiff(features, colnames(data_out))
+    miss <- setdiff(features, colnames(data_out))
     if(length(miss))
       warning("subsetDataset: features not in matrix: ",
               paste(head(miss, 5), collapse = ", "),
               if(length(miss) > 5) " ..." else "")
-    keep_feat = intersect(features, colnames(data_out))
-    data_out  = data_out[, keep_feat, drop = FALSE]
-    vmeta_out = vmeta[match(keep_feat, vmeta$Compound), , drop = FALSE]
+    keep_feat <- intersect(features, colnames(data_out))
+    data_out <- data_out[, keep_feat, drop = FALSE]
+    vmeta_out <- vmeta[match(keep_feat, vmeta$Compound), , drop = FALSE]
   } else {
-    vmeta_out = vmeta
+    vmeta_out <- vmeta
   }
 
   # --- Drop all-NA features ----------------------------------------------
   if(isTRUE(drop_empty_features) && ncol(data_out) > 0){
-    has_data = colSums(!is.na(data_out)) > 0
-    data_out = data_out[, has_data, drop = FALSE]
-    vmeta_out = vmeta_out[match(colnames(data_out), vmeta_out$Compound), , drop = FALSE]
+    has_data <- colSums(!is.na(data_out)) > 0
+    data_out <- data_out[, has_data, drop = FALSE]
+    vmeta_out <- vmeta_out[match(colnames(data_out), vmeta_out$Compound), , drop = FALSE]
   }
 
   struct::DatasetExperiment(

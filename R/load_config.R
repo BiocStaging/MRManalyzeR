@@ -8,7 +8,7 @@
 #' names(cfg$project)
 #' @family data parse
 #' @export
-loadConfig = function(path_yaml){
+loadConfig <- function(path_yaml){
   yaml::read_yaml(
     path_yaml,
     handlers = list(

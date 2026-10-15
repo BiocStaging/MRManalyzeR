@@ -12,7 +12,7 @@
 #' The palette is shared with the heatmap feature annotation, so a class is the
 #' same colour in both figures.
 #'
-#' @param pca The list returned by [runPCA()].
+#' @param pca The list returned by [mrmRunPCA()].
 #' @param variable_meta Feature metadata, or a `DatasetExperiment` to take it
 #'   from. Matched to the loadings by `Compound`.
 #' @param components Length-2 integer vector: which components to show. Falls
@@ -23,43 +23,43 @@
 #' @examples
 #' de  <- loadDataset(system.file("extdata", "example_synthetic.RDS",
 #'                                 package = "MRManalyzeR"))
-#' pca <- runPCA(de, transform = "log2")
+#' pca <- mrmRunPCA(de, transform = "log2")
 #' plotLoadings(pca, de, colour_by = "Enzymatic_pathway")
 #' @family QC check
-#' @seealso [plotPCA()] for the matching scores plot.
+#' @seealso [mrmPlotPCA()] for the matching scores plot.
 #' @export
-plotLoadings = function(pca, variable_meta, components = c(1, 2),
+plotLoadings <- function(pca, variable_meta, components = c(1, 2),
                          colour_by = NULL){
 
   if(is.null(pca$pr)) return(NULL)
 
   if(methods::is(variable_meta, "DatasetExperiment"))
-    variable_meta = variable_meta$variable_meta
-  vmeta = as.data.frame(variable_meta)
+    variable_meta <- variable_meta$variable_meta
+  vmeta <- as.data.frame(variable_meta)
 
-  pr = pca$pr
-  pc = as.integer(components)[c(1L, 2L)]
-  if(any(pc > ncol(pr$x))) pc = c(1L, min(2L, ncol(pr$x)))
-  pc_labs = sprintf("PC%d", pc)
+  pr <- pca$pr
+  pc <- as.integer(components)[c(1L, 2L)]
+  if(any(pc > ncol(pr$x))) pc <- c(1L, min(2L, ncol(pr$x)))
+  pc_labs <- sprintf("PC%d", pc)
 
-  feats = rownames(pr$rotation)
+  feats <- rownames(pr$rotation)
 
-  colour_by  = .resolve_meta_col(colour_by, vmeta)
-  has_colour = !is.null(colour_by)
-  colour_vec = if(has_colour){
-    cv = as.character(vmeta[[colour_by]][match(feats, vmeta$Compound)])
-    cv[is.na(cv)] = "NA"
+  colour_by <- .resolve_meta_col(colour_by, vmeta)
+  has_colour <- !is.null(colour_by)
+  colour_vec <- if(has_colour){
+    cv <- as.character(vmeta[[colour_by]][match(feats, vmeta$Compound)])
+    cv[is.na(cv)] <- "NA"
     cv
   } else {
     rep("(all)", length(feats))
   }
-  groups_in_order = unique(colour_vec)
+  groups_in_order <- unique(colour_vec)
 
   # Bars are ordered within colour group, so each class reads as a block whose
   # strongest contributors are at its edges.
-  build_pc = function(loading, pc_lab){
-    ord = unlist(lapply(groups_in_order, function(g){
-      idx = which(colour_vec == g)
+  build_pc <- function(loading, pc_lab){
+    ord <- unlist(lapply(groups_in_order, function(g){
+      idx <- which(colour_vec == g)
       if(!length(idx)) return(character(0))
       feats[idx[order(loading[idx], decreasing = TRUE)]]
     }))
@@ -73,12 +73,12 @@ plotLoadings = function(pca, variable_meta, components = c(1, 2),
          levels = rev(paste0(ord, "__", pc_lab)))
   }
 
-  a = build_pc(pr$rotation[, pc[1]], pc_labs[1])
-  b = build_pc(pr$rotation[, pc[2]], pc_labs[2])
+  a <- build_pc(pr$rotation[, pc[1]], pc_labs[1])
+  b <- build_pc(pr$rotation[, pc[2]], pc_labs[2])
 
-  long = rbind(a$df, b$df)
-  long$feat_pc = factor(long$feat_pc, levels = c(a$levels, b$levels))
-  long$PC      = factor(long$PC, levels = pc_labs)
+  long <- rbind(a$df, b$df)
+  long$feat_pc <- factor(long$feat_pc, levels = c(a$levels, b$levels))
+  long$PC     <- factor(long$PC, levels = pc_labs)
 
   ggplot2::ggplot(long, ggplot2::aes(.data$loading, .data$feat_pc,
                                      fill = .data$colour)) +

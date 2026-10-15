@@ -12,6 +12,27 @@
   subsetDataset(de, conditions = list(Sample_type = "Sample"))
 }
 
+test_that("group_scale = 'feature' gives every compound the full range", {
+  de <- .de_for_heatmap()
+  shared  <- plotGroupHeatmap(de, color_samples_by = "Treatment")
+  per_ftr <- plotGroupHeatmap(de, color_samples_by = "Treatment",
+                              group_scale = "feature")
+
+  fill_of <- function(p) p$layers[[1]]$data$fill
+  # Per compound, the largest group mean lands on the limit, so the strongest
+  # cell of every compound is fully saturated.
+  d <- per_ftr$layers[[1]]$data
+  mx <- tapply(abs(d$fill), d$feature, max, na.rm = TRUE)
+  expect_true(all(abs(mx[is.finite(mx)] - 1) < 1e-8))
+  expect_true(all(abs(fill_of(per_ftr)) <= 1 + 1e-8, na.rm = TRUE))
+
+  # Shared is the default and does not do that: most compounds stay short of
+  # the limit, which is what makes them comparable.
+  ds <- shared$layers[[1]]$data
+  mxs <- tapply(abs(ds$fill), ds$feature, max, na.rm = TRUE)
+  expect_gt(stats::var(mxs[is.finite(mxs)]), 0)
+})
+
 test_that("blocked compounds put their names between the bar and the cells", {
   de <- .de_for_heatmap()
   p  <- plotGroupHeatmap(de, color_samples_by = "Treatment",

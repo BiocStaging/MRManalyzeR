@@ -65,10 +65,10 @@ plotVolcano(st, "PBS_vs_HDM")
 }
 \seealso{
 Other stats:
+\code{\link[=mrmPlotHeatmap]{mrmPlotHeatmap()}},
 \code{\link[=plotBoxplot]{plotBoxplot()}},
 \code{\link[=plotCorrelation]{plotCorrelation()}},
 \code{\link[=plotGroupHeatmap]{plotGroupHeatmap()}},
-\code{\link[=plotHeatmap]{plotHeatmap()}},
 \code{\link[=runStats]{runStats()}},
 \code{\link[=summariseGroups]{summariseGroups()}}
 }

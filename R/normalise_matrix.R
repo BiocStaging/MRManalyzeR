@@ -17,14 +17,15 @@
 #'                              row.names = c("PGE2", "PGD2")))
 #' normaliseMatrix(de, column = "protein_ug")$data
 #' @export
-normaliseMatrix = function(de, column){
+normaliseMatrix <- function(de, column){
+  .check_de(de, "normaliseMatrix")
 
-  smeta = as.data.frame(de$sample_meta)
+  smeta <- as.data.frame(de$sample_meta)
   if(!column %in% colnames(smeta))
     stop(sprintf("[normaliseMatrix] sample_meta has no '%s' column.", column))
 
   # data rows and sample_meta rows are aligned in a DatasetExperiment, so the
   # divisor recycles down each feature column.
-  de$data = as.data.frame(de$data) / smeta[[column]]
+  de$data <- as.data.frame(de$data) / smeta[[column]]
   de
 }

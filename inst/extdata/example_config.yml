@@ -11,11 +11,14 @@ project: &general
   # off, except where a default is stated.
 
   # ============================= PATHS =============================
+  # Placeholders: edit these four to your own study before running. To see the
+  # workflow run without editing anything, use mrmRunExample(), which points
+  # this configuration at the bundled workbook and a directory you choose.
   paths:
-    project_dir: &project_dir 'C:/Users/matsmi/OneDrive - Karolinska Institutet/Dokument/Bioinformatics/MRManalyzeR'
-    data_dir:    &data_dir    !concat_path [*project_dir, 'inst/extdata']
-    result_dir:  &result_dir  !concat_path [*project_dir, 'temp_res']
-    fn:          &fn example_data   # input .xlsx name (in data_dir), and the stem of every
+    project_dir: &project_dir 'C:/path/to/study'
+    data_dir:    &data_dir    !concat_path [*project_dir, 'data']
+    result_dir:  &result_dir  !concat_path [*project_dir, 'results']
+    fn:          &fn my_workbook    # input .xlsx name (in data_dir), and the stem of every
                                     # output; with execute: False it must match the stored .RDS
     suffix: _                       # appended to output filenames
                                     # (datatype lives with the data source it applies to)
@@ -314,7 +317,13 @@ project: &general
       color_samples_by:       Treatment    # sample annotation + 4.6 Global-tab ranking factor
       group_features_by:      Enzymatic_pathway   # feature_metadata column
       transform:              log2         # none | log2 | sqrt
-      scale:                  z            # z | none  (ignored when style is group_means)
+      scale:                  auto         # samples style: z | none.
+                                           #   group_means: auto = one colour limit at
+                                           #   two groups (compounds comparable), one
+                                           #   limit per compound at three or more
+                                           #   (read each compound's profile) |
+                                           #   z = always shared | feature = always
+                                           #   per compound
       style:                  auto         # auto | samples | group_means
                                            #   auto -> group_means at 3+ groups, samples at 2
       alpha_floor:            0.6          # group_means only: opacity of a non-contributing sample

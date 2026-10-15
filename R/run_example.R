@@ -19,23 +19,23 @@
 #'   `output_directory` element is the resolved results directory.
 #' @examples
 #' # Light run: build the peak matrix + outputs, skip HTML report rendering.
-#' res <- runExample(render = FALSE, open = FALSE)
+#' res <- mrmRunExample(render = FALSE, open = FALSE)
 #' res$output_directory       # where the xlsx + rds landed
 #' @family entry points
 #' @export
-runExample = function(results_dir = tempfile("MRManalyzeR_example_"),
+mrmRunExample <- function(results_dir = tempfile("MRManalyzeR_example_"),
                        open        = interactive(),
                        render      = TRUE){
 
-  data_xlsx = system.file("extdata", "example_data.xlsx",
+  data_xlsx <- system.file("extdata", "example_data.xlsx",
                           package = "MRManalyzeR")
-  base_yaml = system.file("extdata", "example_config.yml",
+  base_yaml <- system.file("extdata", "example_config.yml",
                           package = "MRManalyzeR")
   if(!nzchar(data_xlsx) || !file.exists(data_xlsx))
-    stop("[runExample] bundled example_data.xlsx not found ",
+    stop("[mrmRunExample] bundled example_data.xlsx not found ",
          "- reinstall MRManalyzeR.")
   if(!nzchar(base_yaml) || !file.exists(base_yaml))
-    stop("[runExample] bundled example_config.yml not found ",
+    stop("[mrmRunExample] bundled example_config.yml not found ",
          "- reinstall MRManalyzeR.")
 
   dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
@@ -44,11 +44,11 @@ runExample = function(results_dir = tempfile("MRManalyzeR_example_"),
   # plain string paths. We override the data + result locations to point at
   # the bundled xlsx and a writable temp folder, then write the modified
   # YAML alongside the outputs so the user can inspect / edit it.
-  cfg = loadConfig(base_yaml)
-  cfg$project$paths$data_dir    = dirname(data_xlsx)
-  cfg$project$paths$result_dir  = results_dir
-  cfg$project$paths$project_dir = results_dir
-  cfg$project$paths$fn          = tools::file_path_sans_ext(basename(data_xlsx))
+  cfg <- loadConfig(base_yaml)
+  cfg$project$paths$data_dir   <- dirname(data_xlsx)
+  cfg$project$paths$result_dir <- results_dir
+  cfg$project$paths$project_dir <- results_dir
+  cfg$project$paths$fn         <- tools::file_path_sans_ext(basename(data_xlsx))
 
   # Light mode: skip the (pandoc-heavy) report renders, keep the matrix build.
   if(!isTRUE(render)){
@@ -56,17 +56,17 @@ runExample = function(results_dir = tempfile("MRManalyzeR_example_"),
     cfg$project$stats_report$execute        <- FALSE
   }
 
-  out_yaml = file.path(results_dir, "example_config.yml")
+  out_yaml <- file.path(results_dir, "example_config.yml")
   yaml::write_yaml(cfg, out_yaml)
 
-  message("[runExample] outputs -> ", results_dir)
-  res = runMRManalyzeR(out_yaml)
+  message("[mrmRunExample] outputs -> ", results_dir)
+  res <- runMRManalyzeR(out_yaml)
 
   if(isTRUE(open)){
-    htmls = list.files(results_dir, pattern = "\\.html$", full.names = TRUE)
+    htmls <- list.files(results_dir, pattern = "\\.html$", full.names = TRUE)
     for(h in htmls) utils::browseURL(h)
   }
 
-  res$output_directory = results_dir
+  res$output_directory <- results_dir
   invisible(res)
 }

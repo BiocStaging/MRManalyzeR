@@ -58,11 +58,11 @@ head(as.data.frame(de$variable_meta)[, c("Compound", "CV_QC",
 }
 \seealso{
 Other QC check:
+\code{\link[=mrmPlotPCA]{mrmPlotPCA()}},
+\code{\link[=mrmRunPCA]{mrmRunPCA()}},
 \code{\link[=plotDrift]{plotDrift()}},
 \code{\link[=plotLoadings]{plotLoadings()}},
-\code{\link[=plotPCA]{plotPCA()}},
 \code{\link[=plotQQ]{plotQQ()}},
-\code{\link[=runPCA]{runPCA()}},
 \code{\link[=summariseFeatures]{summariseFeatures()}}
 }
 \concept{QC check}

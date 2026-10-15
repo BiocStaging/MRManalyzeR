@@ -53,7 +53,7 @@ Features are ordered by their `group_by` class into contiguous blocks and
 clustered within each block, so a class stays together and reads as a unit;
 with no `group_by`, clustering is global. A coloured strip along each axis
 carries the class, using the same palette as [plotLoadings()] and the
-feature annotation in [plotHeatmap()] - so a class is one colour everywhere
+feature annotation in [mrmPlotHeatmap()] - so a class is one colour everywhere
 in the report.
 }
 \examples{
@@ -67,9 +67,9 @@ plotCorrelation(st, de, group_by = "Enzymatic_pathway")
 }
 \seealso{
 Other stats:
+\code{\link[=mrmPlotHeatmap]{mrmPlotHeatmap()}},
 \code{\link[=plotBoxplot]{plotBoxplot()}},
 \code{\link[=plotGroupHeatmap]{plotGroupHeatmap()}},
-\code{\link[=plotHeatmap]{plotHeatmap()}},
 \code{\link[=plotVolcano]{plotVolcano()}},
 \code{\link[=runStats]{runStats()}},
 \code{\link[=summariseGroups]{summariseGroups()}}

@@ -51,11 +51,11 @@
 #' @examples
 #' X <- matrix(abs(rnorm(60, 100, 20)), nrow = 12,
 #'             dimnames = list(paste0("S", 1:12), paste0("F", 1:5)))
-#' res <- runPCA(X, transform = "log2")
+#' res <- mrmRunPCA(X, transform = "log2")
 #' res$steps
 #' @family QC check
 #' @export
-runPCA = function(X,
+mrmRunPCA <- function(X,
                             impute        = c("gaussian", "frac_min", "min",
                                               "half_min", "none"),
                             impute_frac   = 0.5,
@@ -66,62 +66,62 @@ runPCA = function(X,
                             sample_na_max = 1,
                             seed          = 42){
 
-  impute    = match.arg(impute)
-  transform = match.arg(transform)
-  steps     = character(0)
+  impute   <- match.arg(impute)
+  transform <- match.arg(transform)
+  steps    <- character(0)
 
-  feat_na_max   = as.numeric(feat_na_max)
-  sample_na_max = as.numeric(sample_na_max)
+  feat_na_max  <- as.numeric(feat_na_max)
+  sample_na_max <- as.numeric(sample_na_max)
 
-  if(methods::is(X, "DatasetExperiment")) X = X$data
-  X = as.matrix(X)
+  if(methods::is(X, "DatasetExperiment")) X <- X$data
+  X <- as.matrix(X)
 
   # 1. Drop all-NA features (always) + optional stricter feature filter
-  na_frac_feat = colMeans(is.na(X))
-  all_na       = na_frac_feat >= 1
-  dropped_all_na = sum(all_na)
-  X = X[, !all_na, drop = FALSE]
+  na_frac_feat <- colMeans(is.na(X))
+  all_na      <- na_frac_feat >= 1
+  dropped_all_na <- sum(all_na)
+  X <- X[, !all_na, drop = FALSE]
   if(dropped_all_na > 0)
-    steps = c(steps, sprintf("Dropped %d all-NA features.", dropped_all_na))
+    steps <- c(steps, sprintf("Dropped %d all-NA features.", dropped_all_na))
 
-  dropped_feat_filter = 0L
+  dropped_feat_filter <- 0L
   if(feat_na_max < 1){
-    na_frac_feat2   = colMeans(is.na(X))
-    drop_f          = na_frac_feat2 > feat_na_max
-    dropped_feat_filter = sum(drop_f)
-    X = X[, !drop_f, drop = FALSE]
-    steps = c(steps, sprintf(
+    na_frac_feat2  <- colMeans(is.na(X))
+    drop_f         <- na_frac_feat2 > feat_na_max
+    dropped_feat_filter <- sum(drop_f)
+    X <- X[, !drop_f, drop = FALSE]
+    steps <- c(steps, sprintf(
       "Feature missing filter (max %g%% NA): dropped %d feature(s).",
       feat_na_max * 100, dropped_feat_filter))
   } else {
-    steps = c(steps, "No feature missing-value filter (feat_na_max = 1).")
+    steps <- c(steps, "No feature missing-value filter (feat_na_max = 1).")
   }
 
   # 2. Optional sample filter
-  dropped_sample_filter = 0L
+  dropped_sample_filter <- 0L
   if(sample_na_max < 1){
-    na_frac_samp = rowMeans(is.na(X))
-    drop_s       = na_frac_samp > sample_na_max
-    dropped_sample_filter = sum(drop_s)
-    X = X[!drop_s, , drop = FALSE]
-    steps = c(steps, sprintf(
+    na_frac_samp <- rowMeans(is.na(X))
+    drop_s      <- na_frac_samp > sample_na_max
+    dropped_sample_filter <- sum(drop_s)
+    X <- X[!drop_s, , drop = FALSE]
+    steps <- c(steps, sprintf(
       "Sample missing filter (max %g%% NA): dropped %d sample(s).",
       sample_na_max * 100, dropped_sample_filter))
   } else {
-    steps = c(steps, "No sample missing-value filter (sample_na_max = 1).")
+    steps <- c(steps, "No sample missing-value filter (sample_na_max = 1).")
   }
 
   # 3. Impute remaining NAs below each feature's lowest measured value
   if(impute != "none"){
-    fac = switch(impute,
+    fac <- switch(impute,
                  min      = 1,
                  half_min = 0.5,
                  as.numeric(impute_frac))
-    random = identical(impute, "gaussian")
-    X = if(random && !is.null(seed))
+    random <- identical(impute, "gaussian")
+    X <- if(random && !is.null(seed))
       withr::with_seed(seed, .fill_below_min(X, fac, TRUE)) else
       .fill_below_min(X, fac, random)
-    steps = c(steps, if(random)
+    steps <- c(steps, if(random)
       sprintf(paste0("Imputed NAs with random values between 0 and %g x the ",
                      "per-feature minimum (normal, mean at half that ceiling, ",
                      "SD a sixth of it; seed %s)."),
@@ -130,52 +130,52 @@ runPCA = function(X,
                    switch(impute, min = "minimum", half_min = "half-minimum",
                           sprintf("%g x minimum", fac))))
   } else {
-    steps = c(steps, "No NA imputation.")
+    steps <- c(steps, "No NA imputation.")
   }
 
   # 3. Transform
   if(transform == "log2"){
-    X[X < 0 & !is.na(X)] = 0
-    X = log2(X + 1)
-    steps = c(steps, "log2(x + 1) transform.")
+    X[X < 0 & !is.na(X)] <- 0
+    X <- log2(X + 1)
+    steps <- c(steps, "log2(x + 1) transform.")
   } else if(transform == "sqrt"){
-    X[X < 0 & !is.na(X)] = 0
-    X = sqrt(X)
-    steps = c(steps, "sqrt(x) transform.")
+    X[X < 0 & !is.na(X)] <- 0
+    X <- sqrt(X)
+    steps <- c(steps, "sqrt(x) transform.")
   } else {
-    steps = c(steps, "No transform.")
+    steps <- c(steps, "No transform.")
   }
 
   # 4. Drop zero-variance / still-NA features
-  vars = apply(X, 2, stats::var, na.rm = TRUE)
-  keep = is.finite(vars) & vars > 0
-  dropped_zero_var = sum(!keep)
-  X = X[, keep, drop = FALSE]
+  vars <- apply(X, 2, stats::var, na.rm = TRUE)
+  keep <- is.finite(vars) & vars > 0
+  dropped_zero_var <- sum(!keep)
+  X <- X[, keep, drop = FALSE]
   if(dropped_zero_var > 0)
-    steps = c(steps, sprintf("Dropped %d zero-variance features.", dropped_zero_var))
+    steps <- c(steps, sprintf("Dropped %d zero-variance features.", dropped_zero_var))
 
   # 5. PCA
-  if(center) steps = c(steps, "Mean-centred per feature.")
-  if(scale)  steps = c(steps, "Autoscaled (divide by per-feature SD).")
+  if(center) steps <- c(steps, "Mean-centred per feature.")
+  if(scale)  steps <- c(steps, "Autoscaled (divide by per-feature SD).")
 
   # The handler returns the condition rather than writing to `steps` from
   # inside it: prcomp() cannot itself return something inheriting from
   # "error", so testing the result is unambiguous, and the audit trail is
   # then appended in the frame that owns it.
   if(ncol(X) >= 2 && nrow(X) >= 3){
-    fit = tryCatch(stats::prcomp(X, center = center, scale. = scale),
+    fit <- tryCatch(stats::prcomp(X, center = center, scale. = scale),
                    error = function(e) e)
     if(inherits(fit, "error")){
-      steps = c(steps, sprintf("prcomp() failed: %s.",
+      steps <- c(steps, sprintf("prcomp() failed: %s.",
                                conditionMessage(fit)))
-      pr = NULL
+      pr <- NULL
     } else {
-      pr = fit
+      pr <- fit
     }
   } else {
-    steps = c(steps, sprintf("Insufficient data: n_samples=%d, n_features=%d.",
+    steps <- c(steps, sprintf("Insufficient data: n_samples=%d, n_features=%d.",
                              nrow(X), ncol(X)))
-    pr = NULL
+    pr <- NULL
   }
 
   list(pr = pr, X_clean = X,

@@ -40,52 +40,52 @@
 #' plotVolcano(st, "PBS_vs_HDM")
 #' @family stats
 #' @export
-plotVolcano = function(stats, comparison = NULL, pair = NULL,
+plotVolcano <- function(stats, comparison = NULL, pair = NULL,
                         use_adjusted  = FALSE,
                         sig_threshold = 0.05,
                         top_n_label   = 10){
 
   if(is.list(stats) && !is.data.frame(stats) && !is.null(stats$stats))
-    stats = stats$stats
-  stats = as.data.frame(stats)
+    stats <- stats$stats
+  stats <- as.data.frame(stats)
 
-  p_col = if(isTRUE(use_adjusted)) "p_adj" else "p_value"
-  p_lbl = if(isTRUE(use_adjusted)) "BH-adjusted p" else "raw p"
+  p_col <- if(isTRUE(use_adjusted)) "p_adj" else "p_value"
+  p_lbl <- if(isTRUE(use_adjusted)) "BH-adjusted p" else "raw p"
 
-  posthoc = c("tukey", "pairwise_wilcoxon")
+  posthoc <- c("tukey", "pairwise_wilcoxon")
 
-  df = stats[!is.na(stats$log2FC) & !is.na(stats[[p_col]]), , drop = FALSE]
+  df <- stats[!is.na(stats$log2FC) & !is.na(stats[[p_col]]), , drop = FALSE]
 
   if(is.null(comparison)){
-    comps = unique(df$comparison)
+    comps <- unique(df$comparison)
     if(length(comps) > 1)
       stop("[plotVolcano] several comparisons present; name one: ",
            paste(comps, collapse = ", "))
-    comparison = comps[1]
+    comparison <- comps[1]
   }
-  df = df[df$comparison %in% comparison, , drop = FALSE]
+  df <- df[df$comparison %in% comparison, , drop = FALSE]
 
   if(!is.null(pair)){
-    df = df[df$method %in% posthoc &
+    df <- df[df$method %in% posthoc &
               paste(df$group1, "vs", df$group2) %in% pair, , drop = FALSE]
   } else if(any(!df$method %in% posthoc)){
-    df = df[!df$method %in% posthoc, , drop = FALSE]
+    df <- df[!df$method %in% posthoc, , drop = FALSE]
   }
 
   if(nrow(df) == 0) return(NULL)
 
-  title = if(is.null(pair)) comparison else paste0(comparison, " - ", pair)
+  title <- if(is.null(pair)) comparison else paste0(comparison, " - ", pair)
 
-  df$neglog10p = -log10(df[[p_col]])
-  df$sig       = ifelse(df[[p_col]] < sig_threshold, "sig", "ns")
-  df$tooltip   = sprintf("%s<br>log2FC: %.3g<br>%s: %.3g",
+  df$neglog10p <- -log10(df[[p_col]])
+  df$sig      <- ifelse(df[[p_col]] < sig_threshold, "sig", "ns")
+  df$tooltip  <- sprintf("%s<br>log2FC: %.3g<br>%s: %.3g",
                          df$feature, df$log2FC, p_lbl, df[[p_col]])
 
-  sig_rows = df[df$sig == "sig", , drop = FALSE]
-  sig_rows = sig_rows[order(sig_rows[[p_col]]), , drop = FALSE]
-  to_label = utils::head(sig_rows, top_n_label)
+  sig_rows <- df[df$sig == "sig", , drop = FALSE]
+  sig_rows <- sig_rows[order(sig_rows[[p_col]]), , drop = FALSE]
+  to_label <- utils::head(sig_rows, top_n_label)
 
-  p = ggplot2::ggplot(df, ggplot2::aes(.data$log2FC, .data$neglog10p,
+  p <- ggplot2::ggplot(df, ggplot2::aes(.data$log2FC, .data$neglog10p,
                                        color = .data$sig,
                                        text = .data$tooltip)) +
     ggplot2::geom_point(alpha = 0.7, size = 2) +
@@ -106,7 +106,7 @@ plotVolcano = function(stats, comparison = NULL, pair = NULL,
   if(nrow(to_label) > 0){
     # ggrepel keeps labels off the points; fall back to plain text if the
     # (suggested) package is not installed.
-    p = if(requireNamespace("ggrepel", quietly = TRUE))
+    p <- if(requireNamespace("ggrepel", quietly = TRUE))
       p + ggrepel::geom_text_repel(data = to_label,
                                    ggplot2::aes(label = .data$feature),
                                    color = "#d62728", fontface = "bold",

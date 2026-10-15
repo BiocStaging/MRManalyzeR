@@ -1,4 +1,4 @@
-test_that("plotHeatmap keeps gaps as gaps and still clusters", {
+test_that("mrmPlotHeatmap keeps gaps as gaps and still clusters", {
   skip_if_not_installed("pheatmap")
   ids <- paste0("S", 1:6)
   m <- matrix(c(5, 7, 6, 9, 8, 7,
@@ -13,6 +13,6 @@ test_that("plotHeatmap keeps gaps as gaps and still clusters", {
     sample_meta   = data.frame(G = rep(c("a", "b"), 3), row.names = ids),
     variable_meta = data.frame(Compound = colnames(m),
                                row.names = colnames(m)))
-  p <- plotHeatmap(de, color_samples_by = "G", cluster_rows = TRUE)
+  p <- mrmPlotHeatmap(de, color_samples_by = "G", cluster_rows = TRUE)
   expect_s3_class(p, "ggplot")
 })

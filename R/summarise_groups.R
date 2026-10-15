@@ -23,26 +23,27 @@
 #' head(summariseGroups(de, "Treatment"))
 #' @family stats
 #' @export
-summariseGroups = function(de, group_by, compounds = NULL){
+summariseGroups <- function(de, group_by, compounds = NULL){
+  .check_de(de, "summariseGroups")
 
-  dm    = as.data.frame(de$data)
-  smeta = as.data.frame(de$sample_meta)
+  dm   <- as.data.frame(de$data)
+  smeta <- as.data.frame(de$sample_meta)
 
   if(!group_by %in% colnames(smeta))
     stop(sprintf("[summariseGroups] '%s' is not a sample_meta column.",
                  group_by))
 
-  if(is.null(compounds)) compounds = colnames(dm)
-  miss = setdiff(compounds, colnames(dm))
+  if(is.null(compounds)) compounds <- colnames(dm)
+  miss <- setdiff(compounds, colnames(dm))
   if(length(miss))
     stop(sprintf("[summariseGroups] not features in this dataset: %s",
                  paste(utils::head(miss, 5), collapse = ", ")))
 
-  grp = as.character(smeta[[group_by]])
+  grp <- as.character(smeta[[group_by]])
 
-  rows = lapply(compounds, function(f){
-    v  = dm[[f]]
-    sp = split(v, grp)
+  rows <- lapply(compounds, function(f){
+    v <- dm[[f]]
+    sp <- split(v, grp)
     data.frame(
       Compound = f,
       group    = names(sp),
@@ -52,8 +53,8 @@ summariseGroups = function(de, group_by, compounds = NULL){
       stringsAsFactors = FALSE)
   })
 
-  out = do.call(rbind, rows)
-  out$se = out$sd / sqrt(pmax(out$n, 1))
-  rownames(out) = NULL
+  out <- do.call(rbind, rows)
+  out$se <- out$sd / sqrt(pmax(out$n, 1))
+  rownames(out) <- NULL
   out
 }

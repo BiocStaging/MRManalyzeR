@@ -41,7 +41,7 @@
 #' @family stats
 #' @seealso [summariseGroups()] for the numbers the bars are drawn from.
 #' @export
-plotBoxplot = function(de, compound, group_by, facet_by = NULL,
+plotBoxplot <- function(de, compound, group_by, facet_by = NULL,
                         type           = c("box", "bar"),
                         error_bar      = c("SD", "SE", "none"),
                         value_label    = "value",
@@ -50,48 +50,49 @@ plotBoxplot = function(de, compound, group_by, facet_by = NULL,
                         yaxis_quant    = 0.95,
                         yaxis_scalar   = 1.3,
                         fill_brewer    = TRUE){
+  .check_de(de, "plotBoxplot")
 
-  type = match.arg(type)
+  type <- match.arg(type)
 
   # YAML supplies these uppercase ("SD" / "SE" / "NONE"); accept either case
   # rather than make every caller normalise.
-  error_bar = toupper(error_bar[1])
+  error_bar <- toupper(error_bar[1])
   if(!error_bar %in% c("SD", "SE", "NONE"))
     stop("[plotBoxplot] error_bar must be one of: SD, SE, none.")
 
-  dm    = as.data.frame(de$data)
-  smeta = as.data.frame(de$sample_meta)
+  dm   <- as.data.frame(de$data)
+  smeta <- as.data.frame(de$sample_meta)
 
   if(!compound %in% colnames(dm))
     stop(sprintf("[plotBoxplot] '%s' is not a feature in this dataset.",
                  compound))
-  group_by = .resolve_meta_col(group_by, smeta) %||%
+  group_by <- .resolve_meta_col(group_by, smeta) %||%
     stop(sprintf("[plotBoxplot] '%s' is not a sample_meta column. Present: %s.",
                  group_by, paste(colnames(smeta), collapse = ", ")))
-  facet_by       = .resolve_meta_col(facet_by, smeta)
-  sample_id_head = .resolve_meta_col(sample_id_head, smeta)
-  tooltip_factor = .resolve_meta_col(tooltip_factor, smeta)
+  facet_by      <- .resolve_meta_col(facet_by, smeta)
+  sample_id_head <- .resolve_meta_col(sample_id_head, smeta)
+  tooltip_factor <- .resolve_meta_col(tooltip_factor, smeta)
 
-  df = data.frame(group = as.character(smeta[[group_by]]),
+  df <- data.frame(group = as.character(smeta[[group_by]]),
                   value = dm[[compound]],
                   stringsAsFactors = FALSE)
 
-  sid = if(!is.null(sample_id_head))
+  sid <- if(!is.null(sample_id_head))
     as.character(smeta[[sample_id_head]]) else rownames(dm)
-  extra = if(!is.null(tooltip_factor))
+  extra <- if(!is.null(tooltip_factor))
     as.character(smeta[[tooltip_factor]]) else NA_character_
 
-  df$tooltip = sprintf("%s: %s<br>%s: %.3g<br>%s: %s",
+  df$tooltip <- sprintf("%s: %s<br>%s: %.3g<br>%s: %s",
                        sample_id_head %||% "sample", sid,
                        value_label, df$value,
                        tooltip_factor %||% "group", extra)
 
-  if(!is.null(facet_by)) df$facet = as.character(smeta[[facet_by]])
+  if(!is.null(facet_by)) df$facet <- as.character(smeta[[facet_by]])
 
-  cap = stats::quantile(df$value, probs = yaxis_quant, na.rm = TRUE) *
+  cap <- stats::quantile(df$value, probs = yaxis_quant, na.rm = TRUE) *
         yaxis_scalar
 
-  p = ggplot2::ggplot(df, ggplot2::aes(.data$group, .data$value,
+  p <- ggplot2::ggplot(df, ggplot2::aes(.data$group, .data$value,
                                        fill = .data$group)) +
     ggplot2::coord_cartesian(ylim = c(0, cap)) +
     ggplot2::labs(x = NULL, y = value_label, title = compound) +
@@ -101,11 +102,11 @@ plotBoxplot = function(de, compound, group_by, facet_by = NULL,
       legend.position = "none")
 
   if(isTRUE(fill_brewer))
-    p = p + ggplot2::scale_fill_manual(
+    p <- p + ggplot2::scale_fill_manual(
               values = .group_fill_colors(df$group), na.value = "grey60")
 
   if(!is.null(facet_by))
-    p = p + ggplot2::facet_wrap(~ facet, scales = "free_x", nrow = 1)
+    p <- p + ggplot2::facet_wrap(~ facet, scales = "free_x", nrow = 1)
 
   if(type == "box"){
     # The tooltip is bound only to the jitter layer. Putting `text` on the
@@ -115,27 +116,27 @@ plotBoxplot = function(de, compound, group_by, facet_by = NULL,
       ggplot2::geom_jitter(ggplot2::aes(text = .data$tooltip),
                            width = 0.15, alpha = 0.7, size = 1.4)
   } else {
-    err_fn = switch(
+    err_fn <- switch(
       error_bar,
       NONE = NULL,
       SD = function(x){
-        m = mean(x, na.rm = TRUE); s = stats::sd(x, na.rm = TRUE)
+        m <- mean(x, na.rm = TRUE); s <- stats::sd(x, na.rm = TRUE)
         c(y = m, ymin = m - s, ymax = m + s)
       },
       SE = function(x){
-        m = mean(x, na.rm = TRUE); n = sum(!is.na(x))
-        s = stats::sd(x, na.rm = TRUE) / sqrt(max(1, n))
+        m <- mean(x, na.rm = TRUE); n <- sum(!is.na(x))
+        s <- stats::sd(x, na.rm = TRUE) / sqrt(max(1, n))
         c(y = m, ymin = m - s, ymax = m + s)
       })
 
     # Jitter is deliberately omitted on bars: ggplotly() renders jittered
     # points under a bar as horizontal segments. The box view shows them.
-    p = p + ggplot2::stat_summary(geom = "bar", fun = "mean", alpha = 0.4,
+    p <- p + ggplot2::stat_summary(geom = "bar", fun = "mean", alpha = 0.4,
                                   colour = "black", width = 0.7)
     if(!is.null(err_fn))
       # ggplotly does not translate errorbar width 1:1 with bar width; a very
       # small absolute width is what renders as a cap narrower than the bar.
-      p = p + ggplot2::stat_summary(geom = "errorbar", fun.data = err_fn,
+      p <- p + ggplot2::stat_summary(geom = "errorbar", fun.data = err_fn,
                                     width = 0.05, linewidth = 0.4)
     p
   }

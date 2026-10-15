@@ -22,7 +22,7 @@ object and returns it.
 
 [runMRManalyzeR()] drives all four stages from a single YAML config;
 [runMRManalyzeRCombine()] merges several acquisition panels into one
-analysis; [runExample()] runs the bundled example dataset end to end.
+analysis; [mrmRunExample()] runs the bundled example dataset end to end.
 }
 
 \section{1. Data parse}{
@@ -44,7 +44,7 @@ What is the true concentration? [filterBlanks()], [correctBatch()],
 
 \section{3. QC check}{
 
-Can these numbers be trusted? [runPCA()], plus the per-compound CV metrics
+Can these numbers be trusted? [mrmRunPCA()], plus the per-compound CV metrics
 added to `variable_meta` by [runMRManalyzeR()] and the bundled
 data-quality report.
 }

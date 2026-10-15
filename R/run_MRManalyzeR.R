@@ -56,51 +56,51 @@
 #'   vector (e.g. `["Area", "Response", "Conc"]`), the function loops over each
 #'   datatype and returns a list of per-datatype results.
 #' @examples
-#' # runExample() writes a config for the bundled dataset and drives
+#' # mrmRunExample() writes a config for the bundled dataset and drives
 #' # runMRManalyzeR(); render = FALSE keeps it to the peak-matrix build.
-#' runExample(render = FALSE, open = FALSE)
+#' mrmRunExample(render = FALSE, open = FALSE)
 #' @family entry points
 #' @export
-runMRManalyzeR = function(path_yaml){
+runMRManalyzeR <- function(path_yaml){
 
   stopifnot(file.exists(path_yaml))
 
   # --- Load & unpack YAML -------------------------------------------------
-  project_params = loadConfig(path_yaml)
+  project_params <- loadConfig(path_yaml)
 
   # Fail early, and once. A structural mistake in the config would otherwise
   # surface as an obscure error somewhere in processing or report rendering,
   # after minutes of work, with only the first problem visible.
-  cfg_check = validateConfig(project_params)
+  cfg_check <- mrmValidateConfig(project_params)
   if(length(cfg_check$errors))
     stop("[runMRManalyzeR] configuration is not valid:
 ",
          paste0("  - ", cfg_check$errors, collapse = "
 "),
          call. = FALSE)
-  for(w in cfg_check$warnings) message("[validateConfig] ", w)
+  for(w in cfg_check$warnings) message("[mrmValidateConfig] ", w)
 
-  project_paths = project_params$project$paths
-  pmp_params    = project_params$project$PeakMatrixProcessing
+  project_paths <- project_params$project$paths
+  pmp_params   <- project_params$project$PeakMatrixProcessing
 
   # Prefer new combined blocks; fall back to legacy UVA/MVA blocks
-  dq_params = project_params$project$data_quality_report %||%
+  dq_params <- project_params$project$data_quality_report %||%
                 project_params$project$UVA_report
-  st_params = project_params$project$stats_report %||%
+  st_params <- project_params$project$stats_report %||%
                 project_params$project$MVA_report
 
 
   # --- Datatype loop ------------------------------------------------------
   # Accept either a scalar ("Area") or a vector (["Area", "Response", "Conc"]).
-  datatypes = .resolve_datatype(pmp_params, project_paths)
+  datatypes <- .resolve_datatype(pmp_params, project_paths)
   if(length(datatypes) > 1){
-    results = lapply(datatypes, function(dt){
+    results <- lapply(datatypes, function(dt){
       message(sprintf("\n========== Datatype: %s ==========", dt))
-      pp_one  = project_paths;            pp_one$datatype = dt
-      pmp_one = .narrow_datatype(pmp_params, dt)
-      pp_proj_one = project_params
-      pp_proj_one$project$paths = pp_one
-      pp_proj_one$project$PeakMatrixProcessing = pmp_one
+      pp_one <- project_paths;            pp_one$datatype <- dt
+      pmp_one <- .narrow_datatype(pmp_params, dt)
+      pp_proj_one <- project_params
+      pp_proj_one$project$paths <- pp_one
+      pp_proj_one$project$PeakMatrixProcessing <- pmp_one
       .run_MRManalyzeR_one(project_params = pp_proj_one,
                            project_paths  = pp_one,
                            pmp_params     = pmp_one,
@@ -108,10 +108,10 @@ runMRManalyzeR = function(path_yaml){
                            st_params      = st_params,
                            datatype       = dt)
     })
-    names(results) = datatypes
+    names(results) <- datatypes
     return(invisible(results))
   }
-  datatype = datatypes[[1]]
+  datatype <- datatypes[[1]]
 
   invisible(.run_MRManalyzeR_one(
     project_params = project_params,
@@ -144,18 +144,18 @@ runMRManalyzeR = function(path_yaml){
 #' @return Character vector of one or more datatypes.
 #' @keywords internal
 #' @noRd
-.resolve_datatype = function(pmp_params, project_paths){
+.resolve_datatype <- function(pmp_params, project_paths){
 
-  sources = c("tl_data", "skyline_data", "matrix_data")
-  enabled = sources[vapply(sources, function(s)
+  sources <- c("tl_data", "skyline_data", "matrix_data")
+  enabled <- sources[vapply(sources, function(s)
     isTRUE(pmp_params[[s]]$enabled), logical(1))]
 
   # Exactly one source is expected to be enabled; processDataset() is what
   # enforces that, so here an ambiguous config simply falls through to the
   # block-level setting rather than guessing which reader was meant.
-  from_source = if(length(enabled) != 1L) NULL
+  from_source <- if(length(enabled) != 1L) NULL
                 else .source_datatype(enabled, pmp_params[[enabled]])
-  from_block  = pmp_params$datatype %||% project_paths$datatype
+  from_block <- pmp_params$datatype %||% project_paths$datatype
 
   if(!is.null(from_source) && !is.null(from_block) &&
      !identical(from_source, from_block))
@@ -164,7 +164,7 @@ runMRManalyzeR = function(path_yaml){
       enabled, paste(from_source, collapse = ", "),
       paste(from_block, collapse = ", "), enabled), call. = FALSE)
 
-  dt = from_source %||% from_block
+  dt <- from_source %||% from_block
   if(is.null(dt)){
     # Silently defaulting here renames every output file, which surfaces much
     # later as "expected RDS not found" rather than as the missing key it is.
@@ -176,7 +176,7 @@ runMRManalyzeR = function(path_yaml){
         sprintf("Add `datatype:` to the %s block.", enabled)
       else "Enable exactly one data source and give it a `datatype:`."),
       call. = FALSE)
-    dt = "Area"
+    dt <- "Area"
   }
   as.character(dt)
 }
@@ -184,9 +184,9 @@ runMRManalyzeR = function(path_yaml){
 #' The field a given source block uses to name its reported value
 #' @keywords internal
 #' @noRd
-.source_datatype = function(source_name, blk){
+.source_datatype <- function(source_name, blk){
   if(identical(source_name, "skyline_data")){
-    sf = blk$signal_filter
+    sf <- blk$signal_filter
     # FALSE is "apply no floor", which is a valid choice but not a label -
     # fall through so the run is named by datatype: instead of "FALSE".
     if(is.null(sf) || isFALSE(sf)) NULL else sf
@@ -207,18 +207,18 @@ runMRManalyzeR = function(path_yaml){
 #' @return `pmp_params`, narrowed.
 #' @keywords internal
 #' @noRd
-.narrow_datatype = function(pmp_params, dt){
-  pmp_params$datatype = dt
+.narrow_datatype <- function(pmp_params, dt){
+  pmp_params$datatype <- dt
   if(isTRUE(pmp_params$skyline_data$enabled)){
     # Only when signal_filter is what supplied the datatype: a config that
     # deliberately applies no floor must keep applying none.
-    sf = pmp_params$skyline_data$signal_filter
+    sf <- pmp_params$skyline_data$signal_filter
     if(!is.null(sf) && !isFALSE(sf))
-      pmp_params$skyline_data$signal_filter = dt
+      pmp_params$skyline_data$signal_filter <- dt
   } else if(isTRUE(pmp_params$tl_data$enabled)){
-    pmp_params$tl_data$datatype = dt
+    pmp_params$tl_data$datatype <- dt
   } else if(isTRUE(pmp_params$matrix_data$enabled)){
-    pmp_params$matrix_data$datatype = dt
+    pmp_params$matrix_data$datatype <- dt
   }
   pmp_params
 }
@@ -236,8 +236,8 @@ runMRManalyzeR = function(path_yaml){
 #' @return A data frame.
 #' @keywords internal
 #' @noRd
-.read_sheet = function(xlsx_path, sheet, key){
-  present = openxlsx::getSheetNames(xlsx_path)
+.read_sheet <- function(xlsx_path, sheet, key){
+  present <- openxlsx::getSheetNames(xlsx_path)
   if(!sheet %in% present)
     stop(sprintf(
       "[runMRManalyzeR] no sheet '%s' in %s.\nSheets present: %s.\nSet PeakMatrixProcessing.%s to one of these.",
@@ -249,45 +249,45 @@ runMRManalyzeR = function(path_yaml){
 #' Single-datatype runner extracted from [`runMRManalyzeR()`].
 #' @keywords internal
 #' @noRd
-.run_MRManalyzeR_one = function(project_params, project_paths, pmp_params,
+.run_MRManalyzeR_one <- function(project_params, project_paths, pmp_params,
                                 dq_params, st_params, datatype){
 
   # The resolved datatype is written back so the report templates see it
   # wherever the config happened to declare it - they fall back to it for the
   # axis / matrix value label when `units:` is unset - and so the source block
   # holds a single value rather than the list that was looped over.
-  pmp_params = .narrow_datatype(pmp_params, datatype)
+  pmp_params <- .narrow_datatype(pmp_params, datatype)
 
-  units_tag = gsub("/", "_", datatype)
-  out_stub  = sprintf("%s/%s_%s%s",
+  units_tag <- gsub("/", "_", datatype)
+  out_stub <- sprintf("%s/%s_%s%s",
                       project_paths$result_dir,
                       project_paths$fn,
                       units_tag,
                       project_paths$suffix %||% "")
 
-  out_xlsx       = paste0(out_stub, ".xlsx")
-  out_stats_xlsx = paste0(out_stub, "_stats.xlsx")
-  out_RDS        = paste0(out_stub, ".RDS")
-  out_pars       = paste0(out_stub, ".txt")
+  out_xlsx      <- paste0(out_stub, ".xlsx")
+  out_stats_xlsx <- paste0(out_stub, "_stats.xlsx")
+  out_RDS       <- paste0(out_stub, ".RDS")
+  out_pars      <- paste0(out_stub, ".txt")
 
   dir.create(project_paths$result_dir, recursive = TRUE, showWarnings = FALSE)
 
   # --- Peak-matrix processing (toggle) -----------------------------------
   if(isTRUE(pmp_params$execute)){
-    out = .run_pmp(project_paths, pmp_params, datatype,
+    out <- .run_pmp(project_paths, pmp_params, datatype,
                    out_xlsx = out_xlsx, out_RDS = out_RDS, out_pars = out_pars,
                    project_params = project_params)
-    combined_datamatrices = out$combined_datamatrices
-    measured_datamatrices = out$measured
-    removed_features      = out$removed_features
-    imputed_flags = c(imputed  = .n_imputed_total(combined_datamatrices) > 0,
+    combined_datamatrices <- out$combined_datamatrices
+    measured_datamatrices <- out$measured
+    removed_features     <- out$removed_features
+    imputed_flags <- c(imputed  = .n_imputed_total(combined_datamatrices) > 0,
                       measured = FALSE)
   } else {
     if(!file.exists(out_RDS)){
       # The name is built from fn / datatype / suffix, so a mismatch is a
       # config error rather than a missing file. Listing what is actually in
       # result_dir turns "work out the name" into "read it off this list".
-      avail = grep("_measured\\.RDS$",
+      avail <- grep("_measured\\.RDS$",
                    list.files(project_paths$result_dir, pattern = "\\.RDS$"),
                    value = TRUE, invert = TRUE)
       stop(sprintf(
@@ -302,21 +302,21 @@ runMRManalyzeR = function(path_yaml){
       ))
     }
     message("Skipping PeakMatrixProcessing (execute: False). Loading: ", out_RDS)
-    combined_datamatrices = readRDS(out_RDS)
+    combined_datamatrices <- readRDS(out_RDS)
     # Written beside it when the run imputed, so the reports can still use
     # the measured values.
-    out_meas = .measured_rds(out_RDS)
-    has_meas = file.exists(out_meas)
-    measured_datamatrices = if(has_meas) readRDS(out_meas) else
+    out_meas <- .measured_rds(out_RDS)
+    has_meas <- file.exists(out_meas)
+    measured_datamatrices <- if(has_meas) readRDS(out_meas) else
       combined_datamatrices
-    stored_imp    = .values_imputed(combined_datamatrices,
+    stored_imp   <- .values_imputed(combined_datamatrices,
                                     pmp_params$replace_MVs)
-    imputed_flags = c(imputed = stored_imp, measured = stored_imp && !has_meas)
+    imputed_flags <- c(imputed = stored_imp, measured = stored_imp && !has_meas)
     if(stored_imp && !has_meas)
       warning(sprintf(
         "[runMRManalyzeR] %s holds imputed values and no %s was found (it is written from version 0.99.4 on), so the reports and statistics will use the imputed values. Re-run with execute: True to get the measured ones.",
         basename(out_RDS), basename(out_meas)), call. = FALSE)
-    removed_features      = data.frame()    # not available without re-processing
+    removed_features     <- data.frame()    # not available without re-processing
   }
 
   # --- Statistics ---------------------------------------------------------
@@ -324,26 +324,26 @@ runMRManalyzeR = function(path_yaml){
   # .section_entries() honours the toggle and returns the runnable entries.
   # Tests and summaries use the measured values unless the stats report
   # asks for the imputed matrix.
-  st_data = if(isTRUE(st_params$use_imputed)) combined_datamatrices else
+  st_data <- if(isTRUE(st_params$use_imputed)) combined_datamatrices else
     measured_datamatrices
-  stats_tables  = NULL
-  group_summary = NULL
+  stats_tables <- NULL
+  group_summary <- NULL
   if(isTRUE(st_params$execute)){
-    has_stats =
+    has_stats <-
       length(.section_entries(st_params$comparisons,   "comparisons"))   > 0 ||
       length(.section_entries(st_params$correlations,  "correlations"))  > 0 ||
       length(.section_entries(st_params$linear_models, "linear_models")) > 0 ||
       length(.ion_entries(st_params$ion_ratios))                          > 0
     if(has_stats){
       message("Running statistics...")
-      stats_tables = runStats(st_data, st_params)
+      stats_tables <- runStats(st_data, st_params)
 
       # Group summaries are what the boxplots and barplots are drawn from, so
       # they belong in the workbook next to the tests.
-      gsf = st_params$global_summary_factor
+      gsf <- st_params$global_summary_factor
       if(!is.null(gsf) &&
          gsf %in% colnames(as.data.frame(st_data$sample_meta)))
-        group_summary = tryCatch(
+        group_summary <- tryCatch(
           summariseGroups(st_data, gsf),
           error = function(e){
             warning("[runMRManalyzeR] group summary skipped: ",
@@ -389,7 +389,6 @@ runMRManalyzeR = function(path_yaml){
 
 # --- Internal helpers -------------------------------------------------------
 
-`%||%` = function(a, b) if(is.null(a)) b else a
 
 #' Read a detection-filter block from the YAML
 #'
@@ -399,11 +398,11 @@ runMRManalyzeR = function(path_yaml){
 #' arguments by name.
 #' @keywords internal
 #' @noRd
-.filter_block = function(x){
+.filter_block <- function(x){
   if(is.null(x) || isFALSE(x)) return(FALSE)
-  x = as.list(x)
+  x <- as.list(x)
   if(!isTRUE(x$enabled)) return(FALSE)
-  x$enabled = NULL
+  x$enabled <- NULL
   x
 }
 
@@ -414,8 +413,8 @@ runMRManalyzeR = function(path_yaml){
 #' column. Falls back to a legacy `UVA_report:` block, as the report does.
 #' @keywords internal
 #' @noRd
-.order_head = function(project_params){
-  dq = project_params$project$data_quality_report %||%
+.order_head <- function(project_params){
+  dq <- project_params$project$data_quality_report %||%
        project_params$project$UVA_report %||% list()
   if(!isTRUE(dq$execute)) return(NULL)
   dq$injection_order_head %||% "Injection_order"
@@ -423,38 +422,38 @@ runMRManalyzeR = function(path_yaml){
 
 #' @keywords internal
 #' @noRd
-.run_pmp = function(project_paths, pmp_params, datatype,
+.run_pmp <- function(project_paths, pmp_params, datatype,
                     out_xlsx, out_RDS, out_pars, project_params){
 
-  xlsx_path = sprintf("%s/%s.xlsx", project_paths$data_dir, project_paths$fn)
+  xlsx_path <- sprintf("%s/%s.xlsx", project_paths$data_dir, project_paths$fn)
   message("Reading ", xlsx_path)
 
   # Sample-metadata contract columns (overridable for studies that name them
   # differently). name_col matches LC-MS injection / data-matrix row names.
-  name_col       = pmp_params$name_col        %||% "Name"
-  include_col    = pmp_params$include_col     %||% "Include"
-  include_value  = pmp_params$include_value   %||% "YES"
-  sample_meta_tab = pmp_params$sample_meta_tab %||% "sample_metadata"
+  name_col      <- pmp_params$name_col        %||% "Name"
+  include_col   <- pmp_params$include_col     %||% "Include"
+  include_value <- pmp_params$include_value   %||% "YES"
+  sample_meta_tab <- pmp_params$sample_meta_tab %||% "sample_metadata"
 
   # feature_metadata contract columns (canonicalised internally to
   # Compound / Processing_name / Report / Comment).
-  compound_col        = pmp_params$compound_col        %||% "Compound"
-  processing_name_col = pmp_params$processing_name_col %||% "Processing_name"
-  report_col          = pmp_params$report_col          %||% "Report"
-  report_value        = pmp_params$report_value        %||% "YES"
-  comment_col         = pmp_params$comment_col         %||% "Comment"
-  feature_meta_tab    = pmp_params$feature_meta_tab    %||% "feature_metadata"
+  compound_col       <- pmp_params$compound_col        %||% "Compound"
+  processing_name_col <- pmp_params$processing_name_col %||% "Processing_name"
+  report_col         <- pmp_params$report_col          %||% "Report"
+  report_value       <- pmp_params$report_value        %||% "YES"
+  comment_col        <- pmp_params$comment_col         %||% "Comment"
+  feature_meta_tab   <- pmp_params$feature_meta_tab    %||% "feature_metadata"
 
   # Path-based reads avoid an openxlsx::loadWorkbook() bug on workbooks
   # with certain styling/drawing XML, and are also faster.
-  fdata    = .read_sheet(xlsx_path, feature_meta_tab, "feature_meta_tab")
-  metadata = .read_sheet(xlsx_path, sample_meta_tab,  "sample_meta_tab")
+  fdata   <- .read_sheet(xlsx_path, feature_meta_tab, "feature_meta_tab")
+  metadata <- .read_sheet(xlsx_path, sample_meta_tab,  "sample_meta_tab")
 
   # Check the workbook before anything reads it. Every problem is reported at
   # once: a duplicated sample name and a text value in a measurement column
   # are both worth knowing about before a ten-minute run, not one after the
   # other across three attempts.
-  in_check = validateInput(fdata, metadata,
+  in_check <- mrmValidateInput(fdata, metadata,
                             name_col            = name_col,
                             compound_col        = compound_col,
                             processing_name_col = processing_name_col,
@@ -470,9 +469,9 @@ runMRManalyzeR = function(path_yaml){
 ",
          paste0("  - ", in_check$errors, collapse = "
 "), call. = FALSE)
-  for(w in in_check$warnings) message("[validateInput] ", w)
+  for(w in in_check$warnings) message("[mrmValidateInput] ", w)
 
-  metadata = metadata[which(metadata[[include_col]] == include_value), , drop = FALSE]
+  metadata <- metadata[which(metadata[[include_col]] == include_value), , drop = FALSE]
 
   # Data source is selected by two mutually-exclusive nested blocks, each
   # with its own `enabled:` toggle and source-specific params:
@@ -482,10 +481,10 @@ runMRManalyzeR = function(path_yaml){
   #   matrix_data:  { enabled, data_tab_names, id_col, orientation,
   #                   signal_filter }                             # LOD/LOQ
   # Exactly one must be enabled.
-  sky = pmp_params$skyline_data %||% list()
-  tl  = pmp_params$tl_data      %||% list()
-  mx  = pmp_params$matrix_data  %||% list()
-  on  = c(skyline_data = isTRUE(sky$enabled),
+  sky <- pmp_params$skyline_data %||% list()
+  tl <- pmp_params$tl_data      %||% list()
+  mx <- pmp_params$matrix_data  %||% list()
+  on <- c(skyline_data = isTRUE(sky$enabled),
           tl_data      = isTRUE(tl$enabled),
           matrix_data  = isTRUE(mx$enabled))
   if(sum(on) != 1)
@@ -493,40 +492,40 @@ runMRManalyzeR = function(path_yaml){
       "[runMRManalyzeR] %d data sources enabled under PeakMatrixProcessing (%s) - enable exactly one.",
       sum(on), if(any(on)) paste(names(on)[on], collapse = ", ") else "none"))
 
-  matrix_id_col      = NULL
-  matrix_orientation = "samples_rows"
+  matrix_id_col     <- NULL
+  matrix_orientation <- "samples_rows"
 
   if(on[["skyline_data"]]){
-    data_source    = "skyline"
-    data_tab_names = sky$data_tab_names %||% "skyline_data"
-    signal_filter  = sky$signal_filter %||% FALSE   # LOD | LOQ | False
-    snr            = FALSE
-    tl_headers     = NULL
+    data_source   <- "skyline"
+    data_tab_names <- sky$data_tab_names %||% "skyline_data"
+    signal_filter <- sky$signal_filter %||% FALSE   # LOD | LOQ | False
+    snr           <- FALSE
+    tl_headers    <- NULL
   } else if(on[["matrix_data"]]){
     # Vendor-neutral: any software that exports a rectangular
     # sample x analyte table, with no format-specific parsing.
-    data_source        = "matrix"
-    data_tab_names     = mx$data_tab_names %||% "matrix_data"
-    signal_filter      = mx$signal_filter  %||% FALSE  # LOD | LOQ | False
-    snr                = FALSE
-    tl_headers         = NULL
-    matrix_id_col      = mx$id_col
-    matrix_orientation = mx$orientation %||% "samples_rows"
+    data_source       <- "matrix"
+    data_tab_names    <- mx$data_tab_names %||% "matrix_data"
+    signal_filter     <- mx$signal_filter  %||% FALSE  # LOD | LOQ | False
+    snr               <- FALSE
+    tl_headers        <- NULL
+    matrix_id_col     <- mx$id_col
+    matrix_orientation <- mx$orientation %||% "samples_rows"
   } else {
-    data_source    = "targetlynx"
-    data_tab_names = tl$data_tab_names               # NULL => extractTable greps "lcms_data"
-    tl_headers     = tl$tl_headers
-    snr            = tl$snr %||% FALSE               # numeric threshold, or FALSE to skip
-    signal_filter  = if(isFALSE(snr)) FALSE else "SNR"
+    data_source   <- "targetlynx"
+    data_tab_names <- tl$data_tab_names               # NULL => extractTable greps "lcms_data"
+    tl_headers    <- tl$tl_headers
+    snr           <- tl$snr %||% FALSE               # numeric threshold, or FALSE to skip
+    signal_filter <- if(isFALSE(snr)) FALSE else "SNR"
   }
 
   # PeakMatrixProcessing.adjust_conc is a nested YAML block (enabled toggle
   # + 5 sample_metadata column names) rather than flat keys, so the study's
   # own column names never need to be hardcoded in R -- see adjustConcentration.R.
-  ac_pars = pmp_params$adjust_conc %||% list()
+  ac_pars <- pmp_params$adjust_conc %||% list()
 
   message("Generating data matrix...")
-  combined_data = processDataset(
+  combined_data <- processDataset(
     fdata            = fdata,
     metadata         = metadata,
     xlsx_path        = xlsx_path,
@@ -583,17 +582,17 @@ runMRManalyzeR = function(path_yaml){
     comment_col         = comment_col
   )
 
-  combined_datamatrices = combined_data[[1]]
-  removed_features      = combined_data[[2]]
-  measured              = combined_data$measured %||% combined_datamatrices
-  imputed               = !isFALSE(pmp_params$replace_MVs %||% FALSE)
+  combined_datamatrices <- combined_data[[1]]
+  removed_features     <- combined_data[[2]]
+  measured             <- combined_data$measured %||% combined_datamatrices
+  imputed              <- !isFALSE(pmp_params$replace_MVs %||% FALSE)
 
   # Design checks need the data and the config together, so they run here
   # rather than at load time. These are warnings by default: a thin group or a
   # batch without QCs is a judgement call, not a malformed input - except
-  # complete confounding, which validateDesign() reports as an error.
-  dz_check = tryCatch(
-    validateDesign(combined_datamatrices, project_params,
+  # complete confounding, which mrmValidateDesign() reports as an error.
+  dz_check <- tryCatch(
+    mrmValidateDesign(combined_datamatrices, project_params,
                     sample_type_head = (project_params$project$data_quality_report %||%
                                         list())$sample_type_head %||% "Sample_type",
                     qc_label   = (project_params$project$data_quality_report %||%
@@ -605,29 +604,29 @@ runMRManalyzeR = function(path_yaml){
               conditionMessage(e)); NULL
     })
   if(!is.null(dz_check)){
-    for(w in dz_check$warnings) message("[validateDesign] ", w)
-    for(e in dz_check$errors)   warning("[validateDesign] ", e)
+    for(w in dz_check$warnings) message("[mrmValidateDesign] ", w)
+    for(e in dz_check$errors)   warning("[mrmValidateDesign] ", e)
   }
 
-  scale_fac = pmp_params$scale_fac %||% 1
-  combined_datamatrices$data = combined_datamatrices$data * scale_fac
-  measured$data              = measured$data * scale_fac
+  scale_fac <- pmp_params$scale_fac %||% 1
+  combined_datamatrices$data <- combined_datamatrices$data * scale_fac
+  measured$data             <- measured$data * scale_fac
 
   # Per-feature CV metrics (QC, sample, sample/QC ratio) -> variable_meta,
   # matched to features by Compound. Uses the data_quality_report QC/sample
   # labels (defaults if that block is absent).
-  dq_cv = project_params$project$data_quality_report %||%
+  dq_cv <- project_params$project$data_quality_report %||%
             project_params$project$UVA_report %||% list()
   # Computed on the measured values: a filled-in value says nothing about how
   # reproducibly a compound was measured.
-  measured = addCVMetrics(
+  measured <- addCVMetrics(
     measured,
     sample_type_head = dq_cv$sample_type_head %||% "Sample_type",
     qc_label         = dq_cv$qc_label         %||% "QC",
     sample_labels    = dq_cv$sample_labels    %||% "Sample")
-  combined_datamatrices = .copy_cv_cols(combined_datamatrices, measured)
+  combined_datamatrices <- .copy_cv_cols(combined_datamatrices, measured)
 
-  add_info = data.frame(sheet = "matrix", info = "units",
+  add_info <- data.frame(sheet = "matrix", info = "units",
                         value = pmp_params$units %||% datatype)
 
   .write_output_xlsx(out_xlsx, combined_datamatrices, removed_features,
@@ -635,7 +634,7 @@ runMRManalyzeR = function(path_yaml){
   saveRDS(combined_datamatrices, file = out_RDS)
   # With imputation on, the measured values are stored beside it, so a later
   # execute: False run can still give the reports the real values.
-  out_meas = .measured_rds(out_RDS)
+  out_meas <- .measured_rds(out_RDS)
   if(imputed){
     saveRDS(measured, file = out_meas)
     message("Wrote: ", out_meas)
@@ -643,7 +642,7 @@ runMRManalyzeR = function(path_yaml){
     invisible(file.remove(out_meas))   # left over from a run that imputed
   }
 
-  con = file(out_pars, open = "wt"); on.exit(close(con), add = TRUE)
+  con <- file(out_pars, open = "wt"); on.exit(close(con), add = TRUE)
   utils::capture.output(project_params, file = con)
 
   message("Wrote: ", out_xlsx)
@@ -657,7 +656,7 @@ runMRManalyzeR = function(path_yaml){
 #' Where the measured dataset is stored when the output matrix is imputed
 #' @keywords internal
 #' @noRd
-.measured_rds = function(out_RDS) sub("\\.RDS$", "_measured.RDS", out_RDS)
+.measured_rds <- function(out_RDS) sub("\\.RDS$", "_measured.RDS", out_RDS)
 
 #' Swap each combine input for its measured copy where one exists
 #' @param paths Input paths, possibly named by tag.
@@ -665,36 +664,36 @@ runMRManalyzeR = function(path_yaml){
 #'   wherever that file exists; names are kept.
 #' @keywords internal
 #' @noRd
-.prefer_measured = function(paths){
-  is_rds = grepl("\\.RDS$", paths, ignore.case = TRUE)
-  meas   = sub("\\.RDS$", "_measured.RDS", paths, ignore.case = TRUE)
-  use    = is_rds & file.exists(meas)
+.prefer_measured <- function(paths){
+  is_rds <- grepl("\\.RDS$", paths, ignore.case = TRUE)
+  meas  <- sub("\\.RDS$", "_measured.RDS", paths, ignore.case = TRUE)
+  use   <- is_rds & file.exists(meas)
   if(any(use))
     message(sprintf("[combine] measured values stored for %d input(s): %s",
                     sum(use), paste(basename(meas[use]), collapse = ", ")))
-  paths[use] = meas[use]
+  paths[use] <- meas[use]
   paths
 }
 
 #' Copy the CV columns computed on the measured values onto another dataset
 #' @keywords internal
 #' @noRd
-.copy_cv_cols = function(to, from){
-  vt = as.data.frame(to$variable_meta)
-  vf = as.data.frame(from$variable_meta)
-  at = match(rownames(vt), rownames(vf))
+.copy_cv_cols <- function(to, from){
+  vt <- as.data.frame(to$variable_meta)
+  vf <- as.data.frame(from$variable_meta)
+  at <- match(rownames(vt), rownames(vf))
   for(cc in intersect(c("CV_QC", "CV_sample", "CV_sample_vs_QC"),
                       colnames(vf)))
-    vt[[cc]] = vf[[cc]][at]
-  to$variable_meta = vt
+    vt[[cc]] <- vf[[cc]][at]
+  to$variable_meta <- vt
   to
 }
 
 #' @keywords internal
 #' @noRd
-.write_output_xlsx = function(out_xlsx, combined_datamatrices,
+.write_output_xlsx <- function(out_xlsx, combined_datamatrices,
                               removed_features, add_info, measured = NULL){
-  wb = openxlsx::createWorkbook()
+  wb <- openxlsx::createWorkbook()
 
   openxlsx::addWorksheet(wb, "feature_metadata")
   openxlsx::writeData(wb, "feature_metadata",
@@ -706,7 +705,7 @@ runMRManalyzeR = function(path_yaml){
                       combined_datamatrices$sample_meta,
                       colNames = TRUE, rowNames = FALSE, keepNA = FALSE)
 
-  mat = combined_datamatrices$data %>%
+  mat <- combined_datamatrices$data |>
     dplyr::select(dplyr::where(function(x) any(!is.na(x))))
   openxlsx::addWorksheet(wb, "matrix")
   openxlsx::writeData(wb, "matrix", mat,
@@ -736,7 +735,7 @@ runMRManalyzeR = function(path_yaml){
 
 #' @keywords internal
 #' @noRd
-.render_reports = function(project_params, project_paths, pmp_params,
+.render_reports <- function(project_params, project_paths, pmp_params,
                            dq_params, st_params,
                            out_RDS, out_stub,
                            combined_datamatrices, removed_features,
@@ -744,11 +743,11 @@ runMRManalyzeR = function(path_yaml){
                            measured_datamatrices = combined_datamatrices,
                            imputed = NULL){
 
-  render_one = function(rmd_file, out_html, params_block){
+  render_one <- function(rmd_file, out_html, params_block){
 
-    rmd_path = system.file("rmd", rmd_file, package = "MRManalyzeR")
+    rmd_path <- system.file("rmd", rmd_file, package = "MRManalyzeR")
     if (rmd_path == "") {
-      rmd_path = file.path("inst", "rmd", rmd_file)
+      rmd_path <- file.path("inst", "rmd", rmd_file)
     }
     if(rmd_path == ""){
       warning(sprintf("Report template '%s' not found in installed package.",
@@ -757,38 +756,38 @@ runMRManalyzeR = function(path_yaml){
     }
 
     # Parent on the package namespace so the Rmd can find package
-    # functions (runPCA, subsetDataset, ...) even when the caller
+    # functions (mrmRunPCA, subsetDataset, ...) even when the caller
     # invoked us via `MRManalyzeR::runMRManalyzeR()` without
     # `library(MRManalyzeR)`. Lookup chain: chunk env -> render env ->
     # MRManalyzeR namespace -> imports -> base.
-    pkg_ns = tryCatch(asNamespace("MRManalyzeR"),
+    pkg_ns <- tryCatch(asNamespace("MRManalyzeR"),
                       error = function(e) globalenv())
-    env = new.env(parent = pkg_ns)
-    env$project_params        = project_params
-    env$project_paths         = project_paths
-    env$pmp_params            = pmp_params
-    env$report_pars           = params_block
-    env$include_MVA           = isTRUE(params_block$include_MVA) ||
+    env <- new.env(parent = pkg_ns)
+    env$project_params       <- project_params
+    env$project_paths        <- project_paths
+    env$pmp_params           <- pmp_params
+    env$report_pars          <- params_block
+    env$include_MVA          <- isTRUE(params_block$include_MVA) ||
                                  isTRUE(params_block$pca$enabled)
-    env$out_RDS               = out_RDS
+    env$out_RDS              <- out_RDS
     # Measured values unless this report asks for the imputed matrix.
-    use_imp = isTRUE(params_block$use_imputed)
-    env$combined_datamatrices = if(use_imp) combined_datamatrices else
+    use_imp <- isTRUE(params_block$use_imputed)
+    env$combined_datamatrices <- if(use_imp) combined_datamatrices else
       measured_datamatrices
     # Whether those values include imputed ones, for the report to say so.
     # `imputed` gives it per matrix when the n_imputed record cannot: a
     # dataset stored without one.
-    env$values_imputed = if(is.null(imputed))
+    env$values_imputed <- if(is.null(imputed))
       .n_imputed_total(env$combined_datamatrices) > 0 else
       isTRUE(imputed[[if(use_imp) "imputed" else "measured"]])
     # The PCAs take the exported matrix: the values replace_MVs imputed when
     # it is set, so they impute for themselves only what is still missing.
-    env$pca_datamatrices = combined_datamatrices
-    env$pca_imputed      = if(is.null(imputed))
+    env$pca_datamatrices <- combined_datamatrices
+    env$pca_imputed     <- if(is.null(imputed))
       .n_imputed_total(combined_datamatrices) > 0 else
       isTRUE(imputed[["imputed"]])
-    env$removed_features      = removed_features
-    env$stats_tables          = stats_tables
+    env$removed_features     <- removed_features
+    env$stats_tables         <- stats_tables
 
     message("Rendering: ", out_html)
     rmarkdown::render(
@@ -822,38 +821,38 @@ runMRManalyzeR = function(path_yaml){
 #' @return `NULL`, invisibly; warns once per missing column.
 #' @keywords internal
 #' @noRd
-.check_feature_cols = function(st_params, de){
-  vm  = as.data.frame(de$variable_meta)
-  on  = function(x, default) isTRUE(x %||% default)
-  pca = st_params$pca %||% list()
-  hm  = st_params$heatmap %||% list()
-  ld  = pca$loadings %||% list()
+.check_feature_cols <- function(st_params, de){
+  vm <- as.data.frame(de$variable_meta)
+  on <- function(x, default) isTRUE(x %||% default)
+  pca <- st_params$pca %||% list()
+  hm <- st_params$heatmap %||% list()
+  ld <- pca$loadings %||% list()
 
   # Correlation heatmaps group by heatmap.group_features_by too, whether or
   # not the heatmap section itself is on.
-  corr_on = length(tryCatch(.section_entries(st_params$correlations,
+  corr_on <- length(tryCatch(.section_entries(st_params$correlations,
                                              "correlations"),
                             error = function(e) list())) > 0
 
-  want = list()
+  want <- list()
   if(on(pca$enabled, TRUE) && on(ld$enabled, TRUE))
-    want[["pca: loadings: color_by"]] = ld$color_by
+    want[["pca: loadings: color_by"]] <- ld$color_by
   if(on(hm$enabled, TRUE) || corr_on)
-    want[["heatmap: group_features_by"]] = hm$group_features_by
+    want[["heatmap: group_features_by"]] <- hm$group_features_by
   if(on(hm$enabled, TRUE)){
     if(on((hm$general %||% list())$enabled, TRUE))
-      want[["heatmap: general: group_features_by"]] =
+      want[["heatmap: general: group_features_by"]] <-
         hm$general$group_features_by
     if(on((hm$top_changing %||% list())$enabled, FALSE))
-      want[["heatmap: top_changing: group_features_by"]] =
+      want[["heatmap: top_changing: group_features_by"]] <-
         hm$top_changing$group_features_by
     if(on((hm$split_by_class %||% list())$enabled, FALSE))
-      want[["heatmap: split_by_class: subclass_col"]] =
+      want[["heatmap: split_by_class: subclass_col"]] <-
         hm$split_by_class$subclass_col
   }
 
   for(k in names(want)){
-    col = want[[k]]
+    col <- want[[k]]
     if(!is.null(col) && is.null(.resolve_meta_col(col, vm)))
       warning(sprintf(
         "[stats_report] %s '%s' is not a feature_metadata column, so that grouping is not applied. Columns: %s.",
@@ -945,55 +944,55 @@ runMRManalyzeR = function(path_yaml){
 #' runMRManalyzeRCombine(yml)
 #' @family entry points
 #' @export
-runMRManalyzeRCombine = function(path_yaml){
+runMRManalyzeRCombine <- function(path_yaml){
 
   stopifnot(file.exists(path_yaml))
-  cfg = loadConfig(path_yaml)
+  cfg <- loadConfig(path_yaml)
 
   # Tolerate either a flat top-level layout or a `project:` wrapper.
-  root = cfg$project %||% cfg
-  combine_params = root$combine %||%
+  root <- cfg$project %||% cfg
+  combine_params <- root$combine %||%
                      stop("[combine] YAML lacks a top-level `combine:` block.")
-  st_params      = root$stats_report %||% list(execute = FALSE)
+  st_params     <- root$stats_report %||% list(execute = FALSE)
 
-  ds = combine_params$datasets %||% list()
+  ds <- combine_params$datasets %||% list()
   if(!length(ds)) stop("[combine] `combine.datasets:` is empty.")
 
-  paths = vapply(ds, function(d) d$path, character(1))
-  tags  = vapply(ds, function(d) d$tag %||% NA_character_, character(1))
+  paths <- vapply(ds, function(d) d$path, character(1))
+  tags <- vapply(ds, function(d) d$tag %||% NA_character_, character(1))
   # Named by tag, or after the file when any tag is missing - as
   # combineDatasets() would name them - so a panel keeps its name, and its
   # feature prefix, when it is read from its _measured.RDS.
-  names(paths) = if(all(!is.na(tags) & nzchar(tags))) tags else
+  names(paths) <- if(all(!is.na(tags) & nzchar(tags))) tags else
     tools::file_path_sans_ext(basename(paths))
   # A panel run with replace_MVs stores its measured values beside its main
   # RDS. The merged matrix is built from what each panel exported, and a
   # measured merge from those _measured.RDS files.
-  paths_meas = .prefer_measured(paths)
-  has_meas   = any(paths_meas != paths)
+  paths_meas <- .prefer_measured(paths)
+  has_meas  <- any(paths_meas != paths)
 
   # Per-dataset config maps, keyed by tag and by both paths, so the lookup
   # in combineDatasets() finds them for either merge.
-  build_map = function(field){
-    out = list()
+  build_map <- function(field){
+    out <- list()
     for(i in seq_along(ds)){
-      v = ds[[i]][[field]]
+      v <- ds[[i]][[field]]
       if(is.null(v)) next
-      keys = c(if(!is.na(tags[i]) && nzchar(tags[i])) tags[[i]],
+      keys <- c(if(!is.na(tags[i]) && nzchar(tags[i])) tags[[i]],
                paths[[i]], paths_meas[[i]])
-      for(k in unique(keys)) out[[k]] = v
+      for(k in unique(keys)) out[[k]] <- v
     }
     if(!length(out)) NULL else out
   }
-  qc_remap_list  = build_map("qc_remap")
-  rename_list    = build_map("feature_meta_rename")
+  qc_remap_list <- build_map("qc_remap")
+  rename_list   <- build_map("feature_meta_rename")
 
-  output_stub = combine_params$output_stub %||%
+  output_stub <- combine_params$output_stub %||%
                 stop("[combine] `combine.output_stub:` is required.")
   dir.create(dirname(output_stub), recursive = TRUE, showWarnings = FALSE)
 
-  sid_col = combine_params$sample_id_col %||% "Sample_ID"
-  combine_from = function(p) combineDatasets(
+  sid_col <- combine_params$sample_id_col %||% "Sample_ID"
+  combine_from <- function(p) combineDatasets(
     paths               = p,
     feature_meta_cols   = combine_params$feature_meta_cols,
     sample_meta_cols    = combine_params$sample_meta_cols,
@@ -1007,21 +1006,21 @@ runMRManalyzeRCombine = function(path_yaml){
   )
 
   message(sprintf("[combine] Merging %d dataset(s) ...", length(ds)))
-  combined = combine_from(paths)
+  combined <- combine_from(paths)
   message(sprintf("[combine] Result: %d samples x %d features.",
                   nrow(combined$data), ncol(combined$data)))
-  combined_meas = combined
+  combined_meas <- combined
   if(has_meas){
     message("[combine] Merging the measured values ...")
-    combined_meas = combine_from(paths_meas)
+    combined_meas <- combine_from(paths_meas)
   }
 
-  out_xlsx       = paste0(output_stub, ".xlsx")
-  out_stats_xlsx = paste0(output_stub, "_stats.xlsx")
-  out_RDS        = paste0(output_stub, ".RDS")
-  out_pars       = paste0(output_stub, ".txt")
+  out_xlsx      <- paste0(output_stub, ".xlsx")
+  out_stats_xlsx <- paste0(output_stub, "_stats.xlsx")
+  out_RDS       <- paste0(output_stub, ".RDS")
+  out_pars      <- paste0(output_stub, ".txt")
 
-  add_info = data.frame(
+  add_info <- data.frame(
     sheet = c("matrix", "matrix"),
     info  = c("source", "n_input_datasets"),
     value = c("combineDatasets()", as.character(length(ds)))
@@ -1031,13 +1030,13 @@ runMRManalyzeRCombine = function(path_yaml){
                      add_info          = add_info,
                      measured          = if(has_meas) combined_meas)
   saveRDS(combined, file = out_RDS)
-  out_meas_RDS = .measured_rds(out_RDS)
+  out_meas_RDS <- .measured_rds(out_RDS)
   if(has_meas){
     saveRDS(combined_meas, file = out_meas_RDS)
   } else if(file.exists(out_meas_RDS)){
     invisible(file.remove(out_meas_RDS))   # left over from an earlier merge
   }
-  con = file(out_pars, open = "wt"); on.exit(close(con), add = TRUE)
+  con <- file(out_pars, open = "wt"); on.exit(close(con), add = TRUE)
   utils::capture.output(cfg, file = con)
   message("Wrote: ", out_xlsx)
   message("Wrote: ", out_RDS)
@@ -1045,19 +1044,19 @@ runMRManalyzeRCombine = function(path_yaml){
 
   # The statistics and report use the measured merge unless the report asks
   # for the imputed one.
-  use_imp = isTRUE(st_params$use_imputed)
-  st_data = if(use_imp) combined else combined_meas
+  use_imp <- isTRUE(st_params$use_imputed)
+  st_data <- if(use_imp) combined else combined_meas
 
-  stats_tables = NULL
+  stats_tables <- NULL
   if(isTRUE(st_params$execute)){
-    has_stats =
+    has_stats <-
       length(.section_entries(st_params$comparisons,   "comparisons"))   > 0 ||
       length(.section_entries(st_params$correlations,  "correlations"))  > 0 ||
       length(.section_entries(st_params$linear_models, "linear_models")) > 0 ||
       length(.ion_entries(st_params$ion_ratios))                          > 0
     if(has_stats){
       message("[combine] Running statistics on merged data ...")
-      stats_tables = runStats(st_data, st_params)
+      stats_tables <- runStats(st_data, st_params)
       append_stats_xlsx(out_stats_xlsx, stats_tables)
       message("Wrote stats to: ", out_stats_xlsx)
     }
@@ -1065,28 +1064,28 @@ runMRManalyzeRCombine = function(path_yaml){
 
   if(isTRUE(st_params$execute)){
     .check_feature_cols(st_params, st_data)
-    rmd_path = system.file("rmd", "stats_report.Rmd", package = "MRManalyzeR")
+    rmd_path <- system.file("rmd", "stats_report.Rmd", package = "MRManalyzeR")
     if(rmd_path == "")
-      rmd_path = file.path("inst", "rmd", "stats_report.Rmd")
-    pkg_ns = tryCatch(asNamespace("MRManalyzeR"),
+      rmd_path <- file.path("inst", "rmd", "stats_report.Rmd")
+    pkg_ns <- tryCatch(asNamespace("MRManalyzeR"),
                       error = function(e) globalenv())
-    env = new.env(parent = pkg_ns)
-    units_lbl = combine_params$units %||% "combined"
-    env$project_params        = cfg
-    env$project_paths         = list(datatype = units_lbl)
-    env$pmp_params            = list(units = units_lbl, datatype = units_lbl)
-    env$report_pars           = st_params
-    env$out_RDS               = out_RDS
-    env$combined_datamatrices = st_data
-    env$values_imputed        = .inputs_imputed(
+    env <- new.env(parent = pkg_ns)
+    units_lbl <- combine_params$units %||% "combined"
+    env$project_params       <- cfg
+    env$project_paths        <- list(datatype = units_lbl)
+    env$pmp_params           <- list(units = units_lbl, datatype = units_lbl)
+    env$report_pars          <- st_params
+    env$out_RDS              <- out_RDS
+    env$combined_datamatrices <- st_data
+    env$values_imputed       <- .inputs_imputed(
       if(use_imp) paths else paths_meas, sid_col)
-    env$pca_datamatrices      = combined
-    env$pca_imputed           = if(use_imp) env$values_imputed else
+    env$pca_datamatrices     <- combined
+    env$pca_imputed          <- if(use_imp) env$values_imputed else
       .inputs_imputed(paths, sid_col)
-    env$removed_features      = data.frame()
-    env$stats_tables          = stats_tables
+    env$removed_features     <- data.frame()
+    env$stats_tables         <- stats_tables
 
-    out_html = paste0(output_stub, "_stats_report.html")
+    out_html <- paste0(output_stub, "_stats_report.html")
     message("Rendering: ", out_html)
     rmarkdown::render(input = rmd_path, output_file = out_html,
                       envir = env, quiet = TRUE)

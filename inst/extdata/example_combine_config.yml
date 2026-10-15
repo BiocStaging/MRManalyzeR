@@ -26,7 +26,7 @@ combine:
 
   # -- inputs --
   datasets:
-    - path: "D:/__STUDIES/021_HDM_mice/results/LC-MSMS/NormByArea/GOM_mouseSections_HDM_ng_mL_.RDS"
+    - path: "C:/path/to/results/GOM_mouseSections_HDM_ng_mL_.RDS"
       tag:  "GOM"
       # Optional: rename QC sample IDs to a shared label across all panels.
       # QCs not listed here are dropped from this dataset.
@@ -35,11 +35,11 @@ combine:
       # Format: { new_name: "old_name" }
       # feature_meta_rename: { Class: SubClass }
 
-    - path: "D:/__STUDIES/021_HDM_mice/results/LC-MSMS/NormByArea/cysLT_mouseSections_HDM_ng_mL_.RDS"
+    - path: "C:/path/to/results/cysLT_mouseSections_HDM_ng_mL_.RDS"
       tag:  "cysLT"
       qc_remap: { "QC1": "QC_pooled" }
 
-    - path: "D:/__STUDIES/021_HDM_mice/results/LC-MSMS/NormByArea/SPM_mouseSections_HDM_Response_.RDS"
+    - path: "C:/path/to/results/SPM_mouseSections_HDM_Response_.RDS"
       tag:  "SPM"
       # No qc_remap → QCs (matching ^QC) pass through unchanged
 
@@ -55,7 +55,7 @@ combine:
   # -- output --
   combined_name: "HDM_combined"
   units:         "combined"     # value label for plot axes / report text
-  output_stub:   "D:/__STUDIES/021_HDM_mice/results/LC-MSMS/Combined/HDM_combined"
+  output_stub:   "C:/path/to/results/combined/HDM_combined"
 
 # ========================= STATS REPORT ========================
 # Same schema as the standard MRManalyzeR stats_report block.
