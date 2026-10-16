@@ -1,7 +1,7 @@
 Package: MRManalyzeR
 Type: Package
 Title: Process and Analyse Targeted LC-MS Lipidomics and Metabolomics Data
-Version: 0.99.6
+Version: 0.99.7
 Authors@R: c(
     person("Matthew J.", "Smith",
            email = "mattyjsmith123@gmail.com",
