@@ -1,3 +1,13 @@
+# MRManalyzeR 0.99.7
+
+* The `structToolbox` example in the getting-started vignette is guarded on
+  `pls` and `structToolbox` being installed, and both are declared in
+  Suggests. `structToolbox` suggests `pls` rather than requiring it, so a
+  builder that installs our Suggests but not theirs had the model function
+  without the engine behind it, and the vignette failed to build.
+
+* The rename note in 0.99.6 said five functions where it listed seven.
+
 # MRManalyzeR 0.99.6
 
 Changes from the Bioconductor review.
